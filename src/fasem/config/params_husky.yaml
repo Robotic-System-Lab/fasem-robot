@@ -1,0 +1,22 @@
+# Segmentation configuration
+segmentation:
+  ros__parameters:
+    segmentation_model: "yolo11m-seg.pt"
+    cam_center: 133
+    cam_count: 6
+    view_p: 0.30
+    view_h: 0.3
+    fov_h: 85.0
+# LiDAR configuration
+lidar_limiter:
+  ros__parameters:
+    maxrange: 5
+# Autonomous Exploration configuration
+autonomous_exploration:
+  ros__parameters:
+    lookahead_distance: 0.28
+    speed: 0.18
+    angular_limiter: 10
+    expansion_size: 18
+    target_error: 0.12
+    robot_r: 1.2

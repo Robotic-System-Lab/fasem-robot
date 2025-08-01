@@ -1,0 +1,10 @@
+archive
+build
+install
+/log
+__pycache__
+tmp
+temp
+model
+.vscode
+gmapper
