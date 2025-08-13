@@ -355,8 +355,8 @@ class navigationControl(Node):
         target_vel = self.get_parameter('target_vel').value
     
         self.subscription = self.create_subscription(OccupancyGrid,'map',self.map_callback,10)
-        self.subscription = self.create_subscription(Odometry,'odom',self.odom_callback,10)
-        self.subscription = self.create_subscription(LaserScan,'velodyne_scan',self.scan_callback,10)
+        self.subscription = self.create_subscription(Odometry,'fasem_odom',self.odom_callback,10)
+        self.subscription = self.create_subscription(LaserScan,'fasem_scan',self.scan_callback,10)
         self.publisher = self.create_publisher(Twist, target_vel, 10)
         print("[INFO] Exploring!")
         self.kesif = True
