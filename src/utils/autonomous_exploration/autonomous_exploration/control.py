@@ -4,19 +4,9 @@ from nav_msgs.msg import OccupancyGrid , Odometry
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
 import numpy as np
-import heapq , math , random , yaml
+import heapq , math , random
 import scipy.interpolate as si
 import sys , threading , time
-
-
-with open("src/autonomous_exploration/config/params.yaml", 'r') as file:
-    params = yaml.load(file, Loader=yaml.FullLoader)
-
-lookahead_distance = params["lookahead_distance"]
-speed = params["speed"]
-expansion_size = params["expansion_size"]
-target_error = params["target_error"]
-robot_r = params["robot_r"]
 
 pathGlobal = 0
 
@@ -120,8 +110,7 @@ def bspline_planning(array, sn):
         path = array
     return path
 
-def pure_pursuit(current_x, current_y, current_heading, path, index):
-    global lookahead_distance
+def pure_pursuit(current_x, current_y, current_heading, path, index, lookahead_distance, speed):
     closest_point = None
     v = speed
     for i in range(index,len(path)):
@@ -254,7 +243,7 @@ def findClosestGroup(matrix,groups, current,resolution,originX,originY):
         targetP = [(p[1]*resolution+originX,p[0]*resolution+originY) for p in path]
     return targetP
 """
-def findClosestGroup(matrix,groups, current,resolution,originX,originY):
+def findClosestGroup(matrix,groups, current,resolution,originX,originY,target_error):
     targetP = None
     distances = []
     paths = []
@@ -295,7 +284,7 @@ def pathLength(path):
     total_distance = np.sum(distances)
     return total_distance
 
-def costmap(data,width,height,resolution):
+def costmap(data,width,height,resolution,expansion_size):
     data = np.array(data).reshape(height,width)
     wall = np.where(data >= 100)
     for i in range(-expansion_size,expansion_size+1):
@@ -307,12 +296,11 @@ def costmap(data,width,height,resolution):
             x = np.clip(x,0,height-1)
             y = np.clip(y,0,width-1)
             data[x,y] = 100
-    data = data*resolution
     return data
 
-def exploration(data,width,height,resolution,column,row,originX,originY):
+def exploration(data,width,height,resolution,column,row,originX,originY,expansion_size,target_error):
         global pathGlobal #Global degisken
-        data = costmap(data,width,height,resolution) #Engelleri genislet
+        data = costmap(data,width,height,resolution,expansion_size) #Engelleri genislet
         data[row][column] = 0 #Robot Anlık Konum
         data[data > 5] = 1 # 0 olanlar gidilebilir yer, 100 olanlar kesin engel
         data = frontierB(data) #Sınır noktaları bul
@@ -322,7 +310,7 @@ def exploration(data,width,height,resolution,column,row,originX,originY):
             path = -1
         else: #Grup varsa en yakın grubu bul
             data[data < 0] = 1 #-0.05 olanlar bilinmeyen yer. Gidilemez olarak isaretle. 0 = gidilebilir, 1 = gidilemez.
-            path = findClosestGroup(data,groups,(row,column),resolution,originX,originY) #En yakın grubu bul
+            path = findClosestGroup(data,groups,(row,column),resolution,originX,originY,target_error) #En yakın grubu bul
             if path != None: #Yol varsa BSpline ile düzelt
                 path = bspline_planning(path,len(path)*5)
             else:
@@ -330,7 +318,7 @@ def exploration(data,width,height,resolution,column,row,originX,originY):
         pathGlobal = path
         return
 
-def localControl(scan):
+def localControl(scan, robot_r):
     v = None
     w = None
     for i in range(60):
@@ -351,8 +339,21 @@ class navigationControl(Node):
     def __init__(self):
         super().__init__('Exploration')
         
+        # Declare ROS2 parameters with default values
         self.declare_parameter('target_vel', "cmd_vel")
+        self.declare_parameter('lookahead_distance', 0.24)
+        self.declare_parameter('speed', 0.15)
+        self.declare_parameter('expansion_size', 20)
+        self.declare_parameter('target_error', 0.3)
+        self.declare_parameter('robot_r', 1.5)
+        
+        # Get parameter values
         target_vel = self.get_parameter('target_vel').value
+        self.lookahead_distance = self.get_parameter('lookahead_distance').value
+        self.speed = self.get_parameter('speed').value
+        self.expansion_size = self.get_parameter('expansion_size').value
+        self.target_error = self.get_parameter('target_error').value
+        self.robot_r = self.get_parameter('robot_r').value
     
         self.subscription = self.create_subscription(OccupancyGrid,'map',self.map_callback,10)
         self.subscription = self.create_subscription(Odometry,'fasem_odom',self.odom_callback,10)
@@ -372,7 +373,7 @@ class navigationControl(Node):
                 if isinstance(pathGlobal, int) and pathGlobal == 0:
                     column = int((self.x - self.originX)/self.resolution)
                     row = int((self.y- self.originY)/self.resolution)
-                    exploration(self.data,self.width,self.height,self.resolution,column,row,self.originX,self.originY)
+                    exploration(self.data,self.width,self.height,self.resolution,column,row,self.originX,self.originY,self.expansion_size,self.target_error)
                     self.path = pathGlobal
                 else:
                     self.path = pathGlobal
@@ -384,17 +385,17 @@ class navigationControl(Node):
                 self.kesif = False
                 self.i = 0
                 print("[INFO] Detected Target")
-                t = pathLength(self.path)/speed
+                t = pathLength(self.path)/self.speed
                 t = t - 0.2 #x = v * t formülüne göre hesaplanan sureden 0.2 saniye cikarilir. t sure sonra kesif fonksiyonu calistirilir.
                 self.t = threading.Timer(t,self.target_callback) #Hedefe az bir sure kala kesif fonksiyonunu calistirir.
                 self.t.start()
             
             #Rota Takip Blok Baslangic
             else:
-                v , w = localControl(self.scan)
+                v , w = localControl(self.scan, self.robot_r)
                 if v == None:
-                    v, w,self.i = pure_pursuit(self.x,self.y,self.yaw,self.path,self.i)
-                if(abs(self.x - self.path[-1][0]) < target_error and abs(self.y - self.path[-1][1]) < target_error):
+                    v, w,self.i = pure_pursuit(self.x,self.y,self.yaw,self.path,self.i,self.lookahead_distance,self.speed)
+                if(abs(self.x - self.path[-1][0]) < self.target_error and abs(self.y - self.path[-1][1]) < self.target_error):
                     v = 0.0
                     w = 0.0
                     self.kesif = True
@@ -407,7 +408,7 @@ class navigationControl(Node):
             #Rota Takip Blok Bitis
 
     def target_callback(self):
-        exploration(self.data,self.width,self.height,self.resolution,self.c,self.r,self.originX,self.originY)
+        exploration(self.data,self.width,self.height,self.resolution,self.c,self.r,self.originX,self.originY,self.expansion_size,self.target_error)
         
     def scan_callback(self,msg):
         self.scan_data = msg
