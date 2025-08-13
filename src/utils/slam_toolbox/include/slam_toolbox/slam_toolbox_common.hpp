@@ -32,6 +32,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "segmentation_interfaces/msg/segmentation_result.hpp"
 #include "message_filters/subscriber.h"
 #include "tf2_ros/transform_broadcaster.h"
 #include "tf2_ros/transform_listener.h"
@@ -91,7 +92,7 @@ protected:
     const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<slam_toolbox::srv::DeserializePoseGraph::Request> req,
     std::shared_ptr<slam_toolbox::srv::DeserializePoseGraph::Response> resp);
-  virtual void labelCallback(const std_msgs::msg::String::SharedPtr msg);
+  virtual void labelCallback(const segmentation_interfaces::msg::SegmentationResult::SharedPtr msg);
 
   // Loaders
   void loadSerializedPoseGraph(std::unique_ptr<karto::Mapper> &, std::unique_ptr<karto::Dataset> &);
@@ -142,10 +143,10 @@ protected:
   std::shared_ptr<rclcpp::Service<slam_toolbox::srv::Pause>> ssPauseMeasurements_;
   std::shared_ptr<rclcpp::Service<slam_toolbox::srv::SerializePoseGraph>> ssSerialize_;
   std::shared_ptr<rclcpp::Service<slam_toolbox::srv::DeserializePoseGraph>> ssDesserialize_;
-  std::shared_ptr<rclcpp::Subscription<std_msgs::msg::String>> label_sub_;
+  std::shared_ptr<rclcpp::Subscription<segmentation_interfaces::msg::SegmentationResult>> label_sub_;
 
   // Functional Semantic Utils
-  virtual std::vector<int> processHazardLabels(const Pose2 & pose);
+  virtual std::vector<int> processHazardLabels(const Pose2 & pose, const rclcpp::Time & scan_timestamp);
 
   // Storage for ROS parameters
   std::string odom_frame_, map_frame_, base_frame_, map_name_, scan_topic_;
@@ -155,9 +156,9 @@ protected:
   int throttle_scans_, scan_queue_size_;
 
   // Storage for Semantic Labels
-  std::vector<nlohmann::json> labelJSON_;
+  std::vector<segmentation_interfaces::msg::SegmentationResult> labelData_;
+  boost::mutex labelData_mutex_;  // Mutex untuk melindungi labelData_ dari race condition
   std::vector<int> labelReads_;
-  std::vector<int> rotatedLabelReads_;
   std::vector<std::array<int, 6>> hazardStackCollection_;
   std::vector<int> emptyLabelReads_;
 

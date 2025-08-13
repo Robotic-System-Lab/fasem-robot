@@ -18,6 +18,12 @@ def generate_launch_description():
         'launch',
         'fasem.launch.py'
     )
+    
+    stb_launch = os.path.join(
+        get_package_share_directory('slam_toolbox'),
+        'launch',
+        'online_async_launch.py'
+    )
 
     return LaunchDescription([
         IncludeLaunchDescription(
@@ -25,23 +31,27 @@ def generate_launch_description():
             launch_arguments={'gui': 'true'}.items(),
         ),
         launch_ros.actions.Node(
-            package='merger',
-            executable='map',
-            name='map',
+            package='rebroadcast',
+            executable='scan',
+            name='scan',
+            output='screen',
+            parameters=[config_file],
+        ),
+        launch_ros.actions.Node(
+            package='rebroadcast',
+            executable='odom',
+            name='odom',
             output='screen',
         ),
         launch_ros.actions.Node(
-            package='yolosed',
+            package='segmentation',
             executable='segmentation',
             name='segmentation',
             output='screen',
             parameters=[config_file],
         ),
-        launch_ros.actions.Node(
-            package='gmapper',
-            executable='semap',
-            name='semap',
-            output='screen',
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(stb_launch),
         ),
         launch_ros.actions.Node(
             package='visual',

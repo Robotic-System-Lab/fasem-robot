@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'merger'
+package_name = 'rebroadcast'
 
 setup(
     name=package_name,
@@ -20,10 +20,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'odom = merger.odom_tf_rebroadcaster:main',
-            'map = merger.map_rebroadcaster:main',
-            'limit = merger.lidar_limiter:main',
-            'watcher = merger.watcher:main',
+            'scandom = rebroadcast.scandom:main',
+            'scan = rebroadcast.scan:main',
+            'odom = rebroadcast.odom:main',
         ],
     },
 )

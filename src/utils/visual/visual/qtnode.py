@@ -125,17 +125,18 @@ class MainWindow(QMainWindow):
       for col in range(self.grid_width):
         index = real_row * self.grid_width + col
         value = self.grid_data[index]
-        if value == 99:
+        if value == 100:
           color = [QColor(50, 50, 50) for _ in range(3)]
+        elif value == 101:
+          color = [QColor(50, 250, 50) for _ in range(3)]
+        elif value == 102:
+          color = [QColor(200, 200, 50) for _ in range(3)]
+        elif value == 103:
+          color = [QColor(250, 50, 50) for _ in range(3)]
         elif value == -1:
           color = [QColor('darkgray'), None, None]
         elif value == 0:
           color = [QColor('lightgray'), None, None]
-        else:
-          ratio = (value - 1) / 9
-          r = int(ratio * 255)
-          b = 255 - r
-          color = [QColor(r, 100, b), QColor(r, 100, b), QColor(50, 50, 50)]
         for i, fill in enumerate(color):
           if fill is not None:
             rect = QRectF(col * self.cell_size, row * self.cell_size,

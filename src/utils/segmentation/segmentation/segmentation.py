@@ -7,6 +7,7 @@ import torch
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String, Float64
+from segmentation_interfaces.msg import SegmentationResult
 from cv_bridge import CvBridge
 from ultralytics import YOLO
 
@@ -33,11 +34,11 @@ class YOLOSegnetNode(Node):
     self.cam_center = self.get_parameter('cam_center').value
     self.angle_default = round(360 / self.cam_count)
     
-    self.declare_parameter('segmentation_model', "yolo11m-seg")
+    self.declare_parameter('segmentation_model', "yolo11n-seg.pt")
     self.segmentation_model = self.get_parameter('segmentation_model').value
     
     self.get_logger().info('Loading Model...')
-    model_path = os.path.join(os.path.dirname(__file__), 'model', f"{self.segmentation_model}")
+    model_path = os.path.expanduser(os.path.join('~', 'fasem', 'models', f"{self.segmentation_model}"))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     self.model = YOLO(model_path)
     self.model.to(device)
@@ -51,8 +52,7 @@ class YOLOSegnetNode(Node):
               }] * 360
     
     self.subscribers = []
-    self.label_start_publisher = self.create_publisher(Float64, '/label_start', 10)
-    self.label_end_publisher = self.create_publisher(String, '/label_end', 10)
+    self.label_end_publisher = self.create_publisher(SegmentationResult, '/segmentation_result', 10)
     for i in range(self.cam_count):
       topic_name = f'/camera_{i + 1}/image_raw'
       self.subscribers.append(
@@ -152,12 +152,6 @@ class YOLOSegnetNode(Node):
     if all(image is not None for image in self.images):
       try:
         # self.get_logger().info("Performing segmentation on collected images...")
-        self.segmentation_counter += 1
-        self.timestamp = time.time()
-        label_start_msg = Float64()
-        label_start_msg.data = self.timestamp
-        self.label_start_publisher.publish(label_start_msg)
-        
         self.deg360 = [{'label': None, 'conf': 0}] * 360
         collected_images = [self.segment_image(image, idx) for idx, image in enumerate(self.images)]
         resized_images = []
@@ -203,17 +197,20 @@ class YOLOSegnetNode(Node):
         reversed_detected = detected[::-1]
         translate_detected = [
           (reversed_detected[((self.cam_center) + i) % 360])
-          if reversed_detected[((self.cam_center) + i) % 360] is not None else 99
+          if reversed_detected[((self.cam_center) + i) % 360] is not None else 100
           for i in range(360)
         ]
-        translate_detected = [100 for _ in translate_detected]
-        payload = {
-          'count': self.segmentation_counter,
-          'timestamp': self.timestamp,
-          'detected': translate_detected
-        }
-        msg_out = String()
-        msg_out.data = json.dumps(payload)
+        # translate_detected = [100 for _ in translate_detected]
+        
+        self.segmentation_counter += 1
+        self.timestamp = time.time()
+        
+        # Gunakan custom message type
+        msg_out = SegmentationResult()
+        msg_out.count = self.segmentation_counter
+        msg_out.timestamp = self.timestamp
+        msg_out.detected = translate_detected
+        
         self.label_end_publisher.publish(msg_out)
         self.get_logger().info(f"Successfully performed segmentation for counter: {self.segmentation_counter}")
       except Exception as e:

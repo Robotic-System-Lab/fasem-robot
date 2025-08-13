@@ -5457,10 +5457,10 @@ public:
    */
   virtual kt_bool SaveHazardLabels(const HazardLabels & hLabel)
   {
-    std::cout << "============SaveHazardLabels" << std::endl;
     m_HazardLabels = hLabel;  // Direct assignment to member variable
-    std::cout << "Current labels size : " << m_HazardLabels.size() << std::endl;
-    std::cout << "= = = = = = =" << std::endl;
+    // std::cout << "============SaveHazardLabels" << std::endl;
+    // std::cout << "Current labels size : " << m_HazardLabels.size() << std::endl;
+    // std::cout << "= = = = = = =" << std::endl;
     return true;
   }
 
@@ -6026,10 +6026,10 @@ public:
     pOccupancyGrid->SetOccupancyThreshold(occupancy_threshold); 
     
     // Copy hazard labels from all LocalizedRangeScans to OccupancyGrid
-    std::cout << "============CopyHazardLabelsFromScans" << std::endl;
+    // std::cout << "============CopyHazardLabelsFromScans" << std::endl;
     pOccupancyGrid->CopyHazardLabelsFromScans(rScans);
     
-    std::cout << "= = = = = = =" << std::endl;
+    // std::cout << "= = = = = = =" << std::endl;
 
     pOccupancyGrid->CreateFromScans(rScans);
 
@@ -6139,10 +6139,10 @@ public:
    */
   void CopyHazardLabelsFromScans(const LocalizedRangeScanVector & rScans)
   {
-    std::cout << "Target data copy : " << rScans.size() << std::endl;
+    // std::cout << "Target data copy : " << rScans.size() << std::endl;
     // Clear existing hazard labels and iterate through all scans and collect their hazard labels
     if (m_pHazardLabelsVectorOG) {
-      std::cout << "Elder data length: " << m_pHazardLabelsVectorOG->size() << std::endl;
+      // std::cout << "Elder data length: " << m_pHazardLabelsVectorOG->size() << std::endl;
       m_pHazardLabelsVectorOG->clear();
     }
     for (const auto* scan : rScans) {
@@ -6150,7 +6150,7 @@ public:
         m_pHazardLabelsVectorOG->push_back(scan->GetHazardLabels());
       }
     }
-    std::cout << "Total data copied: " << m_pHazardLabelsVectorOG->size() << std::endl;
+    // std::cout << "Total data copied: " << m_pHazardLabelsVectorOG->size() << std::endl;
   }
 
   /**
@@ -6296,11 +6296,11 @@ protected:
     m_pCellHazardLevel->Resize(GetWidth(), GetHeight());
     m_pCellHazardLevel->GetCoordinateConverter()->SetOffset(GetCoordinateConverter()->GetOffset());
 
-    std::cout << "============CreateFromScans" << std::endl;
-    std::cout << "Current labels size : " << m_pHazardLabelsVectorOG->size() << std::endl;
-    std::cout << "Index [0][0] : " << (*m_pHazardLabelsVectorOG)[0][0] << std::endl;
-    std::cout << "Index [0][1] : " << (*m_pHazardLabelsVectorOG)[0][1] << std::endl;
-    std::cout << "= = = = = = =" << std::endl;
+    // std::cout << "============CreateFromScans" << std::endl;
+    // std::cout << "Current labels size : " << m_pHazardLabelsVectorOG->size() << std::endl;
+    // std::cout << "Index [0][0] : " << (*m_pHazardLabelsVectorOG)[0][0] << std::endl;
+    // std::cout << "Index [0][1] : " << (*m_pHazardLabelsVectorOG)[0][1] << std::endl;
+    // std::cout << "= = = = = = =" << std::endl;
 
     const_forEach(LocalizedRangeScanVector, &rScans)
     {

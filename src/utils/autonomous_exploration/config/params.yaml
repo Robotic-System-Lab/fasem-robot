@@ -1,0 +1,8 @@
+lookahead_distance : 0.24 #front look distance
+speed : 0.15 #maximum speed (reduced for safety)
+expansion_size : 20 #wall expansion coefficient (increased safety margin)
+target_error : 0.3 #margin of error to target
+robot_r : 1.5 #robot distance for local safety (increased safety)
+replanning_threshold : 1.5 #threshold for dynamic replanning
+stuck_detection_time : 8.0 #time to detect if robot is stuck (increased)
+stuck_distance_threshold : 0.01 #minimum distance to consider stuck (more sensitive)

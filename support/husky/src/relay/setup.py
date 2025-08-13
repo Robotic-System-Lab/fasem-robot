@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'yolosed'
+package_name = 'relay'
 
 setup(
     name=package_name,
@@ -20,9 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'segmentation = yolosed.segmentation:main', # YOLO Segmentation
-            'dst = yolosed.detectsegment:main', # YOLO Detection and Segmentation
-            'watch = yolosed.watch:main', # Watchdog
+            'odom = relay.odom:main',
         ],
     },
 )

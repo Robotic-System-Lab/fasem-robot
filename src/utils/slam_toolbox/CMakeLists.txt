@@ -33,6 +33,7 @@ find_package(interactive_markers REQUIRED)
 find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets Test Concurrent)
 find_package(rclcpp_components REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(segmentation_interfaces REQUIRED)
 
 #karto_sdk lib
 set(BUILD_SHARED_LIBS ON)
@@ -61,6 +62,7 @@ set(dependencies
   interactive_markers
   Qt5
   rclcpp_components
+  segmentation_interfaces
 )
 
 set(libraries

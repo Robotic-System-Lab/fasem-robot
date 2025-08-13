@@ -20,6 +20,7 @@
 #include <vector>
 #include <string>
 #include <chrono>
+#include <limits>
 #include "slam_toolbox/slam_toolbox_common.hpp"
 #include "slam_toolbox/serialization.hpp"
 
@@ -41,7 +42,9 @@ SlamToolbox::SlamToolbox(rclcpp::NodeOptions options)
   first_measurement_(true),
   process_near_pose_(nullptr),
   transform_timeout_(rclcpp::Duration::from_seconds(0.5)),
-  minimum_time_interval_(std::chrono::nanoseconds(0))
+  minimum_time_interval_(std::chrono::nanoseconds(0)),
+  labelReads_(360, 0),  // Initialize labelReads_ with 360 elements, all set to 0
+  emptyLabelReads_(360, 100)  // Initialize emptyLabelReads_ with 360 elements, all set to 100
 /*****************************************************************************/
 {
   smapper_ = std::make_unique<mapper_utils::SMapper>();
@@ -240,21 +243,22 @@ void SlamToolbox::setROSInterfaces()
   scan_filter_->registerCallback(
     std::bind(&SlamToolbox::laserCallback, this, std::placeholders::_1));
     
-  label_sub_ = this->create_subscription<std_msgs::msg::String>(
-      "/label", rclcpp::SystemDefaultsQoS(),
+  label_sub_ = this->create_subscription<segmentation_interfaces::msg::SegmentationResult>(
+      "/segmentation_result", rclcpp::SystemDefaultsQoS(),
       std::bind(&SlamToolbox::labelCallback, this, std::placeholders::_1));
 }
 
 /*****************************************************************************/
-void SlamToolbox::labelCallback(const std_msgs::msg::String::SharedPtr msg)
+void SlamToolbox::labelCallback(const segmentation_interfaces::msg::SegmentationResult::SharedPtr msg)
 /*****************************************************************************/
 {
   try {
-    nlohmann::json j = nlohmann::json::parse(msg->data);
-    labelJSON_.push_back(j);
+    boost::mutex::scoped_lock lock(labelData_mutex_);
+    // Langsung simpan data SegmentationResult, tidak perlu parsing JSON lagi
+    labelData_.push_back(*msg);
   }
-  catch (nlohmann::json::parse_error &e) {
-    RCLCPP_ERROR(get_logger(), "JSON parse error: %s", e.what());
+  catch (const std::exception &e) {
+    RCLCPP_ERROR(get_logger(), "Error processing segmentation result: %s", e.what());
   }
 }
 
@@ -566,7 +570,7 @@ bool SlamToolbox::shouldProcessScan(
 }
 
 /*****************************************************************************/
-std::vector<int> SlamToolbox::processHazardLabels(const Pose2 & current_pose)
+std::vector<int> SlamToolbox::processHazardLabels(const Pose2 & current_pose, const rclcpp::Time & scan_timestamp)
 /*****************************************************************************/
 {
   int rounded_theta = -1;
@@ -604,36 +608,87 @@ std::vector<int> SlamToolbox::processHazardLabels(const Pose2 & current_pose)
     RCLCPP_WARN(get_logger(), "Callibrated with pose drift: %d deg", average_drift_);
   }
 
-  // Segmentation data validation
-  if (labelJSON_.empty()) {
-    RCLCPP_WARN(get_logger(), "No segmentation data, skipping..");
-  }
-  else {
-    try {
-      auto &labelCheck = labelJSON_.back();
-      if (!labelCheck.contains("detected") || !labelCheck["detected"].is_array() || labelCheck["detected"].size() != 360) {
-        RCLCPP_WARN(get_logger(), "Segmentation data is not valid, skipping..");
-        throw std::runtime_error("Invalid segmentation data format");
+  // Segmentation data validation and timestamp matching
+  segmentation_interfaces::msg::SegmentationResult closest_label_data;
+  bool found_valid_data = false;
+  
+  try {
+    // Lock untuk mencegah race condition saat mengakses labelData_
+    boost::mutex::scoped_lock lock(labelData_mutex_);
+    
+    // Check if we have data INSIDE the lock to prevent race condition
+    if (labelData_.empty()) {
+      RCLCPP_WARN(get_logger(), "No segmentation data available, skipping..");
+    }
+    else {
+      // Find segmentation data with closest timestamp to scan timestamp
+      double min_time_diff = std::numeric_limits<double>::max();
+      double scan_time = scan_timestamp.seconds();
+      
+      for (const auto& label_data : labelData_) {
+        double label_time = label_data.timestamp;
+        double time_diff = std::abs(scan_time - label_time);
+        
+        if (time_diff < min_time_diff && label_data.detected.size() == 360) {
+          min_time_diff = time_diff;
+          closest_label_data = label_data;
+          found_valid_data = true;
+        }
       }
       
-      // Segmentation data shifting based on the robot's quaternion
-      labelReads_ = labelCheck["detected"].get<std::vector<int>>();
-      int shift = ((rounded_theta - average_drift_) % 360 + 360) % 360;
-
-      for (size_t i = 0; i < 360; ++i) {
-        rotatedLabelReads_[(i + shift) % 360] = labelReads_[i];
+      // Hapus seluruh isi labelData_ setelah menemukan data terdekat
+      // untuk mencegah penumpukan data yang tidak terpakai
+      labelData_.clear();
+      
+      if (found_valid_data) {
+        RCLCPP_INFO(get_logger(), "Using segmentation data with time difference: %.3f seconds (count: %d)", 
+                    min_time_diff, closest_label_data.count);
+        RCLCPP_INFO(get_logger(), "Cleared labelData_ after finding closest match to prevent memory buildup");
+      } else {
+        RCLCPP_WARN(get_logger(), "No valid segmentation data found with correct size (360), skipping..");
       }
-
-      error_trigger = false;
     }
-    catch (const nlohmann::json::exception &e) {
-      RCLCPP_ERROR(get_logger(), "JSON exception while checking segmentation data: %s", e.what());
+  }
+  catch (const std::exception &e) {
+    RCLCPP_ERROR(get_logger(), "Exception while processing segmentation data: %s", e.what());
+  }
+  
+  std::vector<int> rotatedLabelReads_(360, 0);  // Initialize with size 360 and default value 0
+  // Process the selected data OUTSIDE the lock
+  if (found_valid_data) {
+    try {
+      // Segmentation data shifting based on the robot's quaternion
+      RCLCPP_INFO(get_logger(), "Rotating segmentation data based on robot's heading");
+      labelReads_ = closest_label_data.detected;
+      
+      // Validate labelReads_ size before processing
+      if (labelReads_.size() != 360) {
+        RCLCPP_ERROR(get_logger(), "Invalid labelReads_ size: %zu, expected 360", labelReads_.size());
+        error_trigger = true;
+      } else {
+        int shift = ((rounded_theta - average_drift_) % 360 + 360) % 360;
+        
+        // Safe rotation with bounds checking
+        for (size_t i = 0; i < 360; ++i) {
+          size_t target_index = (i + shift) % 360;
+          if (target_index < rotatedLabelReads_.size() && i < labelReads_.size()) {
+            rotatedLabelReads_[target_index] = labelReads_[i];
+          }
+        }
+
+        RCLCPP_INFO(get_logger(), "Successfully rotated segmentation data with shift: %d", shift);
+        error_trigger = false;
+      }
+    }
+    catch (const std::exception &e) {
+      RCLCPP_ERROR(get_logger(), "Exception while rotating segmentation data: %s", e.what());
+      error_trigger = true;
     }
   }
 
   if (error_trigger) {
     RCLCPP_ERROR(get_logger(), "Returning default label reads due to error in segmentation data");
-    return std::vector<int>(360, 100);
+    return emptyLabelReads_;  // Return pre-initialized empty label reads
   } else {
     RCLCPP_WARN(get_logger(), "Returning rotated label reads with %zu elements", rotatedLabelReads_.size());
     return rotatedLabelReads_;
@@ -696,7 +751,7 @@ LocalizedRangeScan * SlamToolbox::addScan(
   // if successfully processed, create odom to map transformation
   // and add our scan to storage
   if (processed) {
-    std::vector<int> hLabels = processHazardLabels(range_scan->GetCorrectedPose());
+    std::vector<int> hLabels = processHazardLabels(range_scan->GetCorrectedPose(), scan->header.stamp);
     // std::cout << "============1st============" << std::endl;
     // std::cout << "Current labels size : " << hLabels.size() << std::endl;
     // std::cout << "Index [0] : " << hLabels[0] << std::endl;

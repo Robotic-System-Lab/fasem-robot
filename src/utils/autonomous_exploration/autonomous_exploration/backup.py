@@ -17,6 +17,9 @@ speed = params["speed"]
 expansion_size = params["expansion_size"]
 target_error = params["target_error"]
 robot_r = params["robot_r"]
+replanning_threshold = params.get("replanning_threshold", 1.0)
+stuck_detection_time = params.get("stuck_detection_time", 8.0)
+stuck_distance_threshold = params.get("stuck_distance_threshold", 0.02)
 
 pathGlobal = 0
 
@@ -124,30 +127,53 @@ def pure_pursuit(current_x, current_y, current_heading, path, index):
     global lookahead_distance
     closest_point = None
     v = speed
-    for i in range(index,len(path)):
+    
+    # Adaptive lookahead distance based on speed
+    adaptive_lookahead = max(lookahead_distance, speed * 2.0)
+    
+    for i in range(index, len(path)):
         x = path[i][0]
         y = path[i][1]
         distance = math.hypot(current_x - x, current_y - y)
-        if lookahead_distance < distance:
+        if adaptive_lookahead < distance:
             closest_point = (x, y)
             index = i
             break
+    
     if closest_point is not None:
         target_heading = math.atan2(closest_point[1] - current_y, closest_point[0] - current_x)
         desired_steering_angle = target_heading - current_heading
     else:
         target_heading = math.atan2(path[-1][1] - current_y, path[-1][0] - current_x)
         desired_steering_angle = target_heading - current_heading
-        index = len(path)-1
+        index = len(path) - 1
+    
+    # Normalize steering angle
     if desired_steering_angle > math.pi:
         desired_steering_angle -= 2 * math.pi
     elif desired_steering_angle < -math.pi:
         desired_steering_angle += 2 * math.pi
-    if desired_steering_angle > math.pi/6 or desired_steering_angle < -math.pi/6:
-        sign = 1 if desired_steering_angle > 0 else -1
-        desired_steering_angle = sign * math.pi/4
+    
+    # Adaptive speed control based on steering angle
+    if abs(desired_steering_angle) > math.pi/3:  # 60 degrees
+        # Sharp turn required - stop and turn
         v = 0.0
-    return v,desired_steering_angle,index
+        desired_steering_angle = math.copysign(math.pi/2, desired_steering_angle)
+    elif abs(desired_steering_angle) > math.pi/6:  # 30 degrees
+        # Moderate turn - reduce speed significantly
+        v = 0.1
+        desired_steering_angle = math.copysign(math.pi/3, desired_steering_angle)
+    elif abs(desired_steering_angle) > math.pi/12:  # 15 degrees
+        # Slight turn - reduce speed moderately
+        v = speed * 0.7
+    
+    # Distance-based speed control - slow down when approaching goal
+    if closest_point is not None:
+        distance_to_goal = math.hypot(current_x - path[-1][0], current_y - path[-1][1])
+        if distance_to_goal < target_error * 3:
+            v = min(v, 0.1)
+    
+    return v, desired_steering_angle, index
 
 def frontierB(matrix):
     for i in range(len(matrix)):
@@ -169,48 +195,28 @@ def assign_groups(matrix):
     for i in range(len(matrix)):
         for j in range(len(matrix[0])):
             if matrix[i][j] == 2:
-                dfs_iterative(matrix, i, j, group, groups)
-                group += 1
+                group = dfs(matrix, i, j, group, groups)
     return matrix, groups
 
-def dfs_iterative(matrix, start_i, start_j, group, groups):
-    # Menggunakan stack untuk iterative DFS menghindari RecursionError
-    if start_i < 0 or start_i >= len(matrix) or start_j < 0 or start_j >= len(matrix[0]):
-        return
-    if matrix[start_i][start_j] != 2:
-        return
-    
-    stack = [(start_i, start_j)]
-    
-    # 8 arah: atas, bawah, kiri, kanan, dan 4 diagonal
-    directions = [(1, 0), (-1, 0), (0, 1), (0, -1), 
-                  (1, 1), (1, -1), (-1, 1), (-1, -1)]
-    
-    # Initialize group if not exists
-    if group not in groups:
-        groups[group] = []
-    
-    while stack:
-        i, j = stack.pop()
-        
-        # Check bounds
-        if i < 0 or i >= len(matrix) or j < 0 or j >= len(matrix[0]):
-            continue
-            
-        # Check if cell is frontier (value == 2)
-        if matrix[i][j] != 2:
-            continue
-            
-        # Add to group and mark as visited
+def dfs(matrix, i, j, group, groups):
+    if i < 0 or i >= len(matrix) or j < 0 or j >= len(matrix[0]):
+        return group
+    if matrix[i][j] != 2:
+        return group
+    if group in groups:
         groups[group].append((i, j))
-        matrix[i][j] = 0  # Mark as visited
-        
-        # Add all 8 neighbors to stack
-        for di, dj in directions:
-            ni, nj = i + di, j + dj
-            if (0 <= ni < len(matrix) and 0 <= nj < len(matrix[0]) and 
-                matrix[ni][nj] == 2):
-                stack.append((ni, nj))
+    else:
+        groups[group] = [(i, j)]
+    matrix[i][j] = 0
+    dfs(matrix, i + 1, j, group, groups)
+    dfs(matrix, i - 1, j, group, groups)
+    dfs(matrix, i, j + 1, group, groups)
+    dfs(matrix, i, j - 1, group, groups)
+    dfs(matrix, i + 1, j + 1, group, groups) # sağ alt çapraz
+    dfs(matrix, i - 1, j - 1, group, groups) # sol üst çapraz
+    dfs(matrix, i - 1, j + 1, group, groups) # sağ üst çapraz
+    dfs(matrix, i + 1, j - 1, group, groups) # sol alt çapraz
+    return group + 1
 
 def fGroups(groups):
     sorted_groups = sorted(groups.items(), key=lambda x: len(x[1]), reverse=True)
@@ -287,17 +293,18 @@ def findClosestGroup(matrix,groups, current,resolution,originX,originY):
     return targetP
 
 def pathLength(path):
-    for i in range(len(path)):
-        path[i] = (path[i][0],path[i][1])
-        points = np.array(path)
+    if len(path) < 2:
+        return 0.0
+    
+    points = np.array([(p[0], p[1]) for p in path])
     differences = np.diff(points, axis=0)
-    distances = np.hypot(differences[:,0], differences[:,1])
+    distances = np.hypot(differences[:, 0], differences[:, 1])
     total_distance = np.sum(distances)
     return total_distance
 
 def costmap(data,width,height,resolution):
     data = np.array(data).reshape(height,width)
-    wall = np.where(data >= 100)
+    wall = np.where(data == 100)
     for i in range(-expansion_size,expansion_size+1):
         for j in range(-expansion_size,expansion_size+1):
             if i  == 0 and j == 0:
@@ -333,18 +340,73 @@ def exploration(data,width,height,resolution,column,row,originX,originY):
 def localControl(scan):
     v = None
     w = None
-    for i in range(60):
-        if scan[i] < robot_r:
-            v = 0.2
-            w = -math.pi/4 
-            break
-    if v == None:
-        for i in range(300,360):
-            if scan[i] < robot_r:
-                v = 0.2
-                w = math.pi/4
-                break
-    return v,w
+    
+    # Filter invalid readings
+    valid_scan = []
+    for reading in scan:
+        if math.isinf(reading) or math.isnan(reading):
+            valid_scan.append(float('inf'))
+        else:
+            valid_scan.append(reading)
+    
+    # Emergency stop - check immediate front (345-15 degrees)
+    emergency_zone = list(range(345, 360)) + list(range(0, 16))
+    for i in emergency_zone:
+        if valid_scan[i] < robot_r * 0.5:  # Half robot radius for emergency
+            v = 0.0
+            w = 0.0
+            return v, w
+    
+    # Critical zone - front area (315-45 degrees)
+    front_left = list(range(315, 360)) + list(range(0, 16))
+    front_center = list(range(345, 360)) + list(range(0, 16))  
+    front_right = list(range(0, 46))
+    
+    # Check for obstacles in front zones
+    obstacle_front_left = any(valid_scan[i] < robot_r for i in front_left)
+    obstacle_front_right = any(valid_scan[i] < robot_r for i in front_right)
+    obstacle_front_center = any(valid_scan[i] < robot_r for i in front_center)
+    
+    # Side obstacle detection (for corridor navigation)
+    left_side = list(range(45, 135))
+    right_side = list(range(225, 315))
+    obstacle_left_side = any(valid_scan[i] < robot_r * 0.8 for i in left_side)
+    obstacle_right_side = any(valid_scan[i] < robot_r * 0.8 for i in right_side)
+    
+    # Decision making based on obstacle locations
+    if obstacle_front_center:
+        # Obstacle directly in front - choose better side
+        min_left_dist = min(valid_scan[i] for i in front_left)
+        min_right_dist = min(valid_scan[i] for i in front_right)
+        
+        if min_left_dist > min_right_dist and not obstacle_left_side:
+            v = 0.1  # Slow speed
+            w = math.pi/3  # Turn left
+        elif min_right_dist > min_left_dist and not obstacle_right_side:
+            v = 0.1  # Slow speed
+            w = -math.pi/3  # Turn right
+        else:
+            # Both sides blocked - stop and turn around
+            v = 0.0
+            w = math.pi/2
+    elif obstacle_front_left and not obstacle_front_right:
+        # Obstacle on front-left - turn right
+        v = 0.15
+        w = -math.pi/4
+    elif obstacle_front_right and not obstacle_front_left:
+        # Obstacle on front-right - turn left
+        v = 0.15
+        w = math.pi/4
+    elif obstacle_left_side and not obstacle_right_side:
+        # Obstacle on left side - slight right adjustment
+        v = 0.15
+        w = -math.pi/6
+    elif obstacle_right_side and not obstacle_left_side:
+        # Obstacle on right side - slight left adjustment
+        v = 0.15
+        w = math.pi/6
+    
+    return v, w
 
 
 class navigationControl(Node):
@@ -352,10 +414,18 @@ class navigationControl(Node):
         super().__init__('Exploration')
         self.subscription = self.create_subscription(OccupancyGrid,'map',self.map_callback,10)
         self.subscription = self.create_subscription(Odometry,'odom',self.odom_callback,10)
-        self.subscription = self.create_subscription(LaserScan,'velodyne_scan',self.scan_callback,10)
+        self.subscription = self.create_subscription(LaserScan,'scan',self.scan_callback,10)
         self.publisher = self.create_publisher(Twist, 'cmd_vel', 10)
         print("[INFO] Exploring!")
         self.kesif = True
+        
+        # Stuck detection variables
+        self.position_history = []  # Store recent positions
+        self.stuck_start_time = None
+        self.recovery_mode = False
+        self.recovery_counter = 0
+        self.last_stuck_check = time.time()
+        
         threading.Thread(target=self.exp).start() #Kesif fonksiyonunu thread olarak calistirir.
         
     def exp(self):
@@ -387,19 +457,108 @@ class navigationControl(Node):
             
             #Rota Takip Blok Baslangic
             else:
-                v , w = localControl(self.scan)
-                if v == None:
-                    v, w,self.i = pure_pursuit(self.x,self.y,self.yaw,self.path,self.i)
+                # Improved stuck detection
+                current_pos = (self.x, self.y)
+                current_time = time.time()
+                
+                # Only check stuck status every 1 second to avoid too frequent checks
+                if current_time - self.last_stuck_check > 1.0:
+                    self.position_history.append(current_pos)
+                    
+                    # Keep only last 8 positions (8 seconds of history)
+                    if len(self.position_history) > 8:
+                        self.position_history.pop(0)
+                    
+                    # Check if robot is stuck (only if we have enough history)
+                    if len(self.position_history) >= 5:  # At least 5 seconds of data
+                        # Calculate movement in last 5 seconds
+                        recent_positions = self.position_history[-5:]
+                        max_distance = 0
+                        
+                        for i in range(len(recent_positions)):
+                            for j in range(i+1, len(recent_positions)):
+                                dist = math.hypot(recent_positions[i][0] - recent_positions[j][0],
+                                                recent_positions[i][1] - recent_positions[j][1])
+                                max_distance = max(max_distance, dist)
+                        
+                        # Robot is stuck if maximum movement in 5 seconds is less than threshold
+                        if max_distance < stuck_distance_threshold:
+                            if self.stuck_start_time is None:
+                                self.stuck_start_time = current_time
+                            elif current_time - self.stuck_start_time > stuck_detection_time:
+                                self.recovery_mode = True
+                                print("[WARNING] Robot stuck! Entering recovery mode")
+                        else:
+                            # Robot is moving sufficiently
+                            self.stuck_start_time = None
+                            if self.recovery_mode:
+                                print("[INFO] Robot unstuck! Exiting recovery mode")
+                            self.recovery_mode = False
+                            self.recovery_counter = 0
+                    
+                    self.last_stuck_check = current_time
+                
+                # Recovery behavior - more gentle approach
+                if self.recovery_mode:
+                    self.recovery_counter += 1
+                    if self.recovery_counter < 30:  # Back up slowly (1.5 seconds)
+                        v = -0.05
+                        w = 0.0
+                    elif self.recovery_counter < 180:  # Turn slowly (1.5 seconds)
+                        v = -0.05
+                        w = math.pi/6  # Slower turn
+                    elif self.recovery_counter < 210:  # Try moving forward
+                        v = -0.05
+                        w = 0.0
+                    else:  # Force replan only after all recovery attempts
+                        print("[INFO] Recovery failed, forcing replan")
+                        self.kesif = True
+                        self.recovery_mode = False
+                        self.recovery_counter = 0
+                        self.position_history.clear()
+                        continue
+                else:
+                    # Normal navigation
+                    # Get local control commands
+                    local_v, local_w = localControl(self.scan)
+                    
+                    # Get pure pursuit commands
+                    pursuit_v, pursuit_w, self.i = pure_pursuit(self.x, self.y, self.yaw, self.path, self.i)
+                    
+                    # Coordinate between local control and pure pursuit
+                    if local_v is not None:
+                        # Local control has detected obstacle - prioritize safety
+                        v = local_v
+                        w = local_w
+                        # If we're stopping due to obstacle, don't advance path index
+                        if v == 0.0:
+                            self.i = max(0, self.i - 1)
+                    else:
+                        # No immediate obstacles - use pure pursuit
+                        v = pursuit_v
+                        w = pursuit_w
+                    
+                    # Additional safety check - reduce speed if turning sharply
+                    if abs(w) > math.pi/4:
+                        v = min(v, 0.1)
+                
+                # Goal reached check
                 if(abs(self.x - self.path[-1][0]) < target_error and abs(self.y - self.path[-1][1]) < target_error):
                     v = 0.0
                     w = 0.0
                     self.kesif = True
                     print("[INFO] Goal Reached")
+                    # Reset stuck detection when goal is reached
+                    self.position_history.clear()
+                    self.stuck_start_time = None
+                    self.recovery_mode = False
+                    self.recovery_counter = 0
                     self.t.join() #Thread bitene kadar bekle.
+                
                 twist.linear.x = v
                 twist.angular.z = w
                 self.publisher.publish(twist)
-                time.sleep(0.1)
+                time.sleep(0.05)  # Increase control frequency to 20Hz
             #Rota Takip Blok Bitis
 
     def target_callback(self):

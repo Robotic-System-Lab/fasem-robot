@@ -2,6 +2,7 @@ archive
 build
 install
 /log
+support/husky/log
 __pycache__
 tmp
 temp

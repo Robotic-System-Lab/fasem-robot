@@ -40,14 +40,14 @@ def generate_launch_description():
             parameters=[config_file],
         ),
         launch_ros.actions.Node(
-            package='yolosed',
+            package='segmentation',
             executable='segmentation',
             name='segmentation',
             output='screen',
             parameters=[config_file],
         ),
         launch_ros.actions.Node(
-            package='gmapper',
+            package='slam_toolbox',
             executable='semap',
             name='semap',
             output='screen',
