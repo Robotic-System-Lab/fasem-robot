@@ -6,11 +6,11 @@ class ScandomNode(Node):
 	def __init__(self):
 		super().__init__('scan')
 		self.initialized_transform = False
-		self.declare_parameter('maxrange', 20.0)
+		self.declare_parameter('max_scan', 20.0)
 		self.declare_parameter('source_scan', "/velodyne_scan")
-		self.maxrange = self.get_parameter('maxrange').value
+		self.max_scan = self.get_parameter('max_scan').value
 		self.source_scan = self.get_parameter('source_scan').value
-		self.scan_publisher = self.create_publisher(LaserScan, '/fasem_scan', 10)
+		self.publisher_scan = self.create_publisher(LaserScan, '/fasem_scan', 10)
 		self.create_subscription(LaserScan, self.source_scan, self.callback_scan, 10)
 	
 	def callback_scan(self, msg: LaserScan):
@@ -28,13 +28,13 @@ class ScandomNode(Node):
 		limited_scan.time_increment = msg.time_increment
 		limited_scan.scan_time = msg.scan_time
 		limited_scan.range_min = msg.range_min
-		limited_scan.range_max = self.maxrange
+		limited_scan.range_max = self.max_scan
 		limited_scan.ranges = [
-			distance if distance <= self.maxrange else float('inf')
+			distance if distance <= self.max_scan else float('inf')
 			for distance in msg.ranges
 		]
 		limited_scan.header.stamp = latest_stamp
-		self.scan_publisher.publish(limited_scan)
+		self.publisher_scan.publish(limited_scan)
 
 def main(args=None):
 	rclpy.init(args=args)
