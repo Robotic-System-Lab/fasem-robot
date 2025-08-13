@@ -2,21 +2,26 @@
 segmentation:
   ros__parameters:
     segmentation_model: "yolo11m-seg.pt"
-    cam_center: 133
+    cam_center: 80
     cam_count: 6
     view_p: 0.30
-    view_h: 0.3
-    fov_h: 85.0
-# LiDAR configuration
-lidar_limiter:
+    view_h: 0.25
+    fov_h: 60.0
+# Ray Scan configuration
+scan:
   ros__parameters:
-    maxrange: 5
+    max_scan: 20.0
+    source_scan: "/velodyne_scan"
+# Odom configuration
+odom:
+  ros__parameters:
+    source_odom: "/odom"
 # Autonomous Exploration configuration
 autonomous_exploration:
   ros__parameters:
-    lookahead_distance: 0.28
-    speed: 0.18
-    angular_limiter: 10
-    expansion_size: 18
-    target_error: 0.12
-    robot_r: 1.2
+    target_vel : "/a200_1060/joy_teleop/cmd_vel"
+    lookahead_distance : 0.24
+    speed : 0.15
+    expansion_size : 20
+    target_error : 0.3
+    robot_r : 1.5
