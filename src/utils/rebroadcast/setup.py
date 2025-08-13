@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'teleop = rebroadcast.teleop:main',
             'scandom = rebroadcast.scandom:main',
             'scan = rebroadcast.scan:main',
             'odom = rebroadcast.odom:main',
