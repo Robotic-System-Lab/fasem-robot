@@ -62,7 +62,6 @@ def generate_launch_description():
     velodyne_laserscan_node = launch_ros.actions.Node(package='velodyne_laserscan',
                                                       executable='velodyne_laserscan_node',
                                                       output='both',
-                                                      remappings=[('/scan', '/velodyne_scan')],
                                                       parameters=[laserscan_params_file])
 
 

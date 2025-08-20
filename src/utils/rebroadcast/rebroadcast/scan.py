@@ -7,7 +7,7 @@ class ScandomNode(Node):
 		super().__init__('scan')
 		self.initialized_transform = False
 		self.declare_parameter('max_scan', 20.0)
-		self.declare_parameter('source_scan', "/velodyne_scan")
+		self.declare_parameter('source_scan', "/scan")
 		self.max_scan = self.get_parameter('max_scan').value
 		self.source_scan = self.get_parameter('source_scan').value
 		self.publisher_scan = self.create_publisher(LaserScan, '/fasem_scan', 10)

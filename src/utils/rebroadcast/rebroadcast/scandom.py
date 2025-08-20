@@ -15,7 +15,7 @@ class ScandomNode(Node):
 	
 		self.declare_parameter('maxrange', 20.0)
 		self.declare_parameter('source_odom', "/husky_odom")
-		self.declare_parameter('source_scan', "/velodyne_scan")
+		self.declare_parameter('source_scan', "/scan")
 
 		self.maxrange = self.get_parameter('maxrange').value
 		self.source_odom = self.get_parameter('source_odom').value
