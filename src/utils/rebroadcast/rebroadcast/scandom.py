@@ -96,6 +96,10 @@ class ScandomNode(Node):
 			distance if distance <= self.maxrange else float('inf')
 			for distance in msg.ranges
 		]
+		limited_scan.intensities = [
+			intensity if msg.ranges[i] <= self.maxrange else 0.0
+			for i, intensity in enumerate(msg.intensities)
+		] if msg.intensities else []
 		limited_scan.header.stamp = latest_stamp
 		self.scan_publisher.publish(limited_scan)
 
