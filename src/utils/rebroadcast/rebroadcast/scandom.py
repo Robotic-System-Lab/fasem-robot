@@ -32,25 +32,19 @@ class ScandomNode(Node):
 		static_fp_to_merged_tf.header.stamp = msg.header.stamp
 		static_fp_to_merged_tf.header.frame_id = 'fasem_footprint'
 		static_fp_to_merged_tf.child_frame_id = 'fasem_link'
-		static_fp_to_merged_tf.transform.translation.x = 0.0
-		static_fp_to_merged_tf.transform.translation.y = 0.0
-		static_fp_to_merged_tf.transform.translation.z = 0.0
-		static_fp_to_merged_tf.transform.rotation.x = 0.0
-		static_fp_to_merged_tf.transform.rotation.y = 0.0
-		static_fp_to_merged_tf.transform.rotation.z = 0.0
-		static_fp_to_merged_tf.transform.rotation.w = 1.0
+		static_fp_to_merged_tf.transform.translation.x = msg.pose.pose.position.x
+		static_fp_to_merged_tf.transform.translation.y = msg.pose.pose.position.y
+		static_fp_to_merged_tf.transform.translation.z = msg.pose.pose.position.z
+		static_fp_to_merged_tf.transform.rotation = msg.pose.pose.orientation
 
 		static_merged_to_scan_tf = TransformStamped()
 		static_merged_to_scan_tf.header.stamp = msg.header.stamp
 		static_merged_to_scan_tf.header.frame_id = 'fasem_link'
 		static_merged_to_scan_tf.child_frame_id = 'fasem_scan'
-		static_merged_to_scan_tf.transform.translation.x = 0.0
-		static_merged_to_scan_tf.transform.translation.y = 0.0
-		static_merged_to_scan_tf.transform.translation.z = 0.0
-		static_merged_to_scan_tf.transform.rotation.x = 0.0
-		static_merged_to_scan_tf.transform.rotation.y = 0.0
-		static_merged_to_scan_tf.transform.rotation.z = 0.0
-		static_merged_to_scan_tf.transform.rotation.w = 1.0
+		static_merged_to_scan_tf.transform.translation.x = msg.pose.pose.position.x
+		static_merged_to_scan_tf.transform.translation.y = msg.pose.pose.position.y
+		static_merged_to_scan_tf.transform.translation.z = msg.pose.pose.position.z
+		static_merged_to_scan_tf.transform.rotation = msg.pose.pose.orientation
 
 		self.static_br.sendTransform([static_fp_to_merged_tf, static_merged_to_scan_tf])
 		self.initialized_transform = True
