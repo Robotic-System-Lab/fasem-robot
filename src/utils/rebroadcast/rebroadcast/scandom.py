@@ -53,16 +53,15 @@ class ScandomNode(Node):
 	def callback_odom(self, msg: Odometry):
 		#############################################
 		#### Odom manipulation
-		latest_stamp = self.get_clock().now().to_msg()
 		save_odom = msg
-		save_odom.header.stamp = latest_stamp
+		save_odom.header.stamp = msg.header.stamp
 		save_odom.header.frame_id = 'fasem_odom'
 		save_odom.child_frame_id = 'fasem_footprint'
 	
 		#############################################
 		#### Odom frame setup
 		odom_tf = TransformStamped()
-		odom_tf.header.stamp = latest_stamp
+		odom_tf.header.stamp = msg.header.stamp
 		odom_tf.header.frame_id = save_odom.header.frame_id
 		odom_tf.child_frame_id = save_odom.child_frame_id 
 		odom_tf.transform.translation.x = save_odom.pose.pose.position.x
