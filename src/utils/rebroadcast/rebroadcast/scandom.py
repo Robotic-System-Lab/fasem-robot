@@ -35,7 +35,7 @@ class ScandomNode(Node):
 		static_fp_to_merged_tf.transform.translation.x = msg.pose.pose.position.x
 		static_fp_to_merged_tf.transform.translation.y = msg.pose.pose.position.y
 		static_fp_to_merged_tf.transform.translation.z = msg.pose.pose.position.z
-		static_fp_to_merged_tf.transform.rotation.x = msg.pose.pose.orientation
+		static_fp_to_merged_tf.transform.rotation = msg.pose.pose.orientation
 
 		static_merged_to_scan_tf = TransformStamped()
 		static_merged_to_scan_tf.header.stamp = msg.header.stamp
