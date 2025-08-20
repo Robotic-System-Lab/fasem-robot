@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid , Odometry
 from geometry_msgs.msg import Twist
-from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import LaserScan, Joy
 import numpy as np
 import heapq , math , random
 import scipy.interpolate as si
@@ -358,7 +358,14 @@ class navigationControl(Node):
         self.subscription = self.create_subscription(OccupancyGrid,'map',self.map_callback,10)
         self.subscription = self.create_subscription(Odometry,'fasem_odom',self.odom_callback,10)
         self.subscription = self.create_subscription(LaserScan,'fasem_scan',self.scan_callback,10)
+        self.joy_subscription = self.create_subscription(Joy, '/a200_1060/joy_teleop/joy', self.joy_callback, 10)
         self.publisher = self.create_publisher(Twist, target_vel, 10)
+        
+        # Emergency handling states
+        self.emergency_stop = False
+        self.exploration_paused = False
+        self.last_button_state = [0, 0, 0]  # Track button states for debouncing
+        
         print("[INFO] Exploring!")
         self.kesif = True
         threading.Thread(target=self.exp).start() #Kesif fonksiyonunu thread olarak calistirir.
@@ -366,6 +373,14 @@ class navigationControl(Node):
     def exp(self):
         twist = Twist()
         while True: #Sensor verileri gelene kadar bekle.
+            # Emergency check - highest priority
+            if self.emergency_stop:
+                twist.linear.x = 0.0
+                twist.angular.z = 0.0
+                self.publisher.publish(twist)
+                time.sleep(0.1)
+                continue
+                
             if not hasattr(self,'map_data') or not hasattr(self,'odom_data') or not hasattr(self,'scan_data'):
                 time.sleep(0.1)
                 continue
@@ -400,7 +415,8 @@ class navigationControl(Node):
                     w = 0.0
                     self.kesif = True
                     print("[INFO] Goal Reached")
-                    self.t.join() #Thread bitene kadar bekle.
+                    if hasattr(self, 't'):  # Check if timer exists before joining
+                        self.t.join() #Thread bitene kadar bekle.
                 twist.linear.x = v
                 twist.angular.z = w
                 self.publisher.publish(twist)
@@ -409,6 +425,43 @@ class navigationControl(Node):
 
     def target_callback(self):
         exploration(self.data,self.width,self.height,self.resolution,self.c,self.r,self.originX,self.originY,self.expansion_size,self.target_error)
+        
+    def joy_callback(self, msg):
+        """Handle joystick input for emergency control"""
+        try:
+            # Ensure we have enough buttons
+            if len(msg.buttons) < 3:
+                return
+                
+            # Button debouncing - only act on button press (0->1 transition)
+            current_buttons = msg.buttons[:3]
+            
+            # Emergency Stop - Button[2] pressed
+            if current_buttons[2] == 1 and self.last_button_state[2] == 0:
+                if not self.emergency_stop:
+                    self.emergency_stop = True
+                    self.exploration_paused = True
+                    print("[EMERGENCY] Exploration stopped! Robot halted.")
+                    
+                    # Cancel any running timer
+                    if hasattr(self, 't') and self.t.is_alive():
+                        self.t.cancel()
+                        print("[INFO] Exploration timer cancelled.")
+                        
+            # Resume Exploration - Button[1] pressed  
+            elif current_buttons[1] == 1 and self.last_button_state[1] == 0:
+                if self.emergency_stop:
+                    self.emergency_stop = False
+                    self.exploration_paused = False
+                    self.kesif = True  # Reset to exploration mode
+                    self.i = 0  # Reset path index
+                    print("[RESUME] Exploration resumed! Starting from current position.")
+                    
+            # Update button state history
+            self.last_button_state = current_buttons[:]
+            
+        except Exception as e:
+            print(f"[ERROR] Joy callback error: {e}")
         
     def scan_callback(self,msg):
         self.scan_data = msg

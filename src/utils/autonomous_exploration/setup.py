@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'control_node = autonomous_exploration.control:main'
+            'control_node = autonomous_exploration.control:main',
+            'watcher = autonomous_exploration.watcher:main'
         ],
     },
 )
