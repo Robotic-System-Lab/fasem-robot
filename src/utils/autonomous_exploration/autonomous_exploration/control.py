@@ -301,6 +301,14 @@ def costmap(data,width,height,resolution,expansion_size):
 def exploration(data,width,height,resolution,column,row,originX,originY,expansion_size,target_error):
         global pathGlobal #Global degisken
         data = costmap(data,width,height,resolution,expansion_size) #Engelleri genislet
+        
+        # Bounds checking untuk mencegah IndexError
+        if row < 0 or row >= height or column < 0 or column >= width:
+            print(f"[WARNING] Robot position out of bounds: row={row}, column={column}, map size=({height},{width})")
+            print(f"[INFO] Map origin: originX={originX}, originY={originY}, resolution={resolution}")
+            pathGlobal = -1  # Set path as completed/invalid
+            return
+            
         data[row][column] = 0 #Robot Anlık Konum
         data[data > 5] = 1 # 0 olanlar gidilebilir yer, 100 olanlar kesin engel
         data = frontierB(data) #Sınır noktaları bul
@@ -388,6 +396,19 @@ class navigationControl(Node):
                 if isinstance(pathGlobal, int) and pathGlobal == 0:
                     column = int((self.x - self.originX)/self.resolution)
                     row = int((self.y- self.originY)/self.resolution)
+                    
+                    # Debugging info untuk troubleshooting
+                    print(f"[DEBUG] Robot world coords: x={self.x:.3f}, y={self.y:.3f}")
+                    print(f"[DEBUG] Map info: origin=({self.originX:.3f}, {self.originY:.3f}), resolution={self.resolution:.3f}")
+                    print(f"[DEBUG] Calculated grid coords: row={row}, column={column}")
+                    print(f"[DEBUG] Map dimensions: height={self.height}, width={self.width}")
+                    
+                    # Validate coordinates before calling exploration
+                    if row < 0 or row >= self.height or column < 0 or column >= self.width:
+                        print(f"[ERROR] Calculated coordinates out of bounds! Skipping exploration.")
+                        time.sleep(0.1)
+                        continue
+                    
                     exploration(self.data,self.width,self.height,self.resolution,column,row,self.originX,self.originY,self.expansion_size,self.target_error)
                     self.path = pathGlobal
                 else:
@@ -424,6 +445,11 @@ class navigationControl(Node):
             #Rota Takip Blok Bitis
 
     def target_callback(self):
+        # Validate coordinates before calling exploration
+        if hasattr(self, 'c') and hasattr(self, 'r') and hasattr(self, 'height') and hasattr(self, 'width'):
+            if self.r < 0 or self.r >= self.height or self.c < 0 or self.c >= self.width:
+                print(f"[ERROR] Target coordinates out of bounds: row={self.r}, column={self.c}")
+                return
         exploration(self.data,self.width,self.height,self.resolution,self.c,self.r,self.originX,self.originY,self.expansion_size,self.target_error)
         
     def joy_callback(self, msg):
