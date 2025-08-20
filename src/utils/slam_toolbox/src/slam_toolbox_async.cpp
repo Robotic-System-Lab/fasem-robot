@@ -55,7 +55,11 @@ void AsynchronousSlamToolbox::laserCallback(
 
   // if not paused, process scan
   if (shouldProcessScan(scan, pose)) {
+    RCLCPP_WARN(get_logger(), "====================");
+    RCLCPP_WARN(get_logger(), "Processing Async Scan");
     addScan(laser, scan, pose);
+    RCLCPP_WARN(get_logger(), "====================");
+    RCLCPP_WARN(get_logger(), "Processed Async Scan");
   }
 }
 
