@@ -687,7 +687,7 @@ std::vector<int> SlamToolbox::processHazardLabels(const Pose2 & current_pose, co
   }
 
   if (error_trigger) {
-    RCLCPP_ERROR(get_logger(), "Returning default label reads due to error in segmentation data");
+    RCLCPP_WARN(get_logger(), "Returning default label reads due to error in segmentation data");
     return emptyLabelReads_;  // Return pre-initialized empty label reads
   } else {
     RCLCPP_WARN(get_logger(), "Returning rotated label reads with %zu elements", rotatedLabelReads_.size());
@@ -757,16 +757,24 @@ LocalizedRangeScan * SlamToolbox::addScan(
     // std::cout << "Index [0] : " << hLabels[0] << std::endl;
     // std::cout << "Index [1] : " << hLabels[1] << std::endl;
     // std::cout << "= = = = = = = = = = = = = =" << std::endl;
+    RCLCPP_WARN(get_logger(), "====================");
+    RCLCPP_WARN(get_logger(), "Saving Hazard Labels");
     range_scan->SaveHazardLabels(hLabels);
 
+    RCLCPP_WARN(get_logger(), "====================");
+    RCLCPP_WARN(get_logger(), "Saving scan data");
     if (enable_interactive_mode_) {
       scan_holder_->addScan(*scan);
     }
 
+    RCLCPP_WARN(get_logger(), "====================");
+    RCLCPP_WARN(get_logger(), "Transforming Poses");
     setTransformFromPoses(range_scan->GetCorrectedPose(), odom_pose,
       scan->header.stamp, update_reprocessing_transform);
     dataset_->Add(range_scan);
 
+    RCLCPP_WARN(get_logger(), "====================");
+    RCLCPP_WARN(get_logger(), "Publishing Poses");
     publishPose(range_scan->GetCorrectedPose(), covariance, scan->header.stamp);
   } else {
     delete range_scan;
