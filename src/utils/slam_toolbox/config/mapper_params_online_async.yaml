@@ -12,7 +12,7 @@ slam_toolbox:
     # ROS Parameters
     odom_frame: fasem_odom
     map_frame: map
-    base_frame: base_footprint
+    base_frame: fasem_footprint
     scan_topic: /fasem_scan
     use_map_saver: true
     mode: mapping #localization
