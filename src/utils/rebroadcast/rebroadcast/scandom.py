@@ -14,7 +14,7 @@ class ScandomNode(Node):
 		self.initialized_transform = False
 	
 		self.declare_parameter('maxrange', 20.0)
-		self.declare_parameter('source_odom', "/husky_odom")
+		self.declare_parameter('source_odom', "/odom")
 		self.declare_parameter('source_scan', "/scan")
 
 		self.maxrange = self.get_parameter('maxrange').value
@@ -79,7 +79,7 @@ class ScandomNode(Node):
 	def callback_scan(self, msg: LaserScan):
 		#############################################
 		#### Temporary scan setup
-		latest_stamp = self.get_clock().now().to_msg()
+		latest_stamp = msg.header.stamp
 		limited_scan = LaserScan()
 
 		#############################################

@@ -200,7 +200,6 @@ class YOLOSegnetNode(Node):
           if reversed_detected[((self.cam_center) + i) % 360] is not None else 100
           for i in range(360)
         ]
-        # translate_detected = [100 for _ in translate_detected]
         
         self.segmentation_counter += 1
         self.timestamp = time.time()
