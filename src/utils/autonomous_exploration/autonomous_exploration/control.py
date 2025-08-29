@@ -215,64 +215,84 @@ def calculate_centroid(x_coords, y_coords):
     centroid = (int(mean_x), int(mean_y))
     return centroid
 
-#Bu fonksiyon en buyuk 5 gruptan target_error*2 uzaklıktan daha uzak olan ve robota en yakın olanı seçer.
-"""
-def findClosestGroup(matrix,groups, current,resolution,originX,originY):
-    targetP = None
-    distances = []
-    paths = []
-    min_index = -1
-    for i in range(len(groups)):
-        middle = calculate_centroid([p[0] for p in groups[i][1]],[p[1] for p in groups[i][1]]) 
-        path = astar(matrix, current, middle)
-        path = [(p[1]*resolution+originX,p[0]*resolution+originY) for p in path]
-        total_distance = pathLength(path)
-        distances.append(total_distance)
-        paths.append(path)
-    for i in range(len(distances)):
-        if distances[i] > target_error*3:
-            if min_index == -1 or distances[i] < distances[min_index]:
-                min_index = i
-    if min_index != -1:
-        targetP = paths[min_index]
-    else: #gruplar target_error*2 uzaklıktan daha yakınsa random bir noktayı hedef olarak seçer. Bu robotun bazı durumlardan kurtulmasını sağlar.
-        index = random.randint(0,len(groups)-1)
-        target = groups[index][1]
-        target = target[random.randint(0,len(target)-1)]
-        path = astar(matrix, current, target)
-        targetP = [(p[1]*resolution+originX,p[0]*resolution+originY) for p in path]
-    return targetP
-"""
-def findClosestGroup(matrix,groups, current,resolution,originX,originY,target_error):
+def findClosestGroup(matrix,groups, current,resolution,originX,originY,target_error, visited_targets=None):
+    if visited_targets is None:
+        visited_targets = set()
+    
     targetP = None
     distances = []
     paths = []
     score = []
     max_score = -1 #max score index
+    
+    # Calculate paths and distances for all groups
     for i in range(len(groups)):
         middle = calculate_centroid([p[0] for p in groups[i][1]],[p[1] for p in groups[i][1]]) 
+        
+        # Convert to world coordinates for comparison
+        world_middle = (middle[1]*resolution+originX, middle[0]*resolution+originY)
+        
+        # Skip if this target was recently visited
+        is_visited = False
+        for visited_target in visited_targets:
+            if (abs(world_middle[0] - visited_target[0]) < target_error*2 and 
+                abs(world_middle[1] - visited_target[1]) < target_error*2):
+                is_visited = True
+                break
+        
+        if is_visited:
+            distances.append(float('inf'))  # Mark as unreachable
+            paths.append([])
+            continue
+            
         path = astar(matrix, current, middle)
-        path = [(p[1]*resolution+originX,p[0]*resolution+originY) for p in path]
-        total_distance = pathLength(path)
-        distances.append(total_distance)
-        paths.append(path)
+        if path:
+            path = [(p[1]*resolution+originX,p[0]*resolution+originY) for p in path]
+            total_distance = pathLength(path)
+            distances.append(total_distance)
+            paths.append(path)
+        else:
+            distances.append(float('inf'))
+            paths.append([])
+    
+    # Calculate scores with penalty for recently visited areas
     for i in range(len(distances)):
-        if distances[i] == 0:
+        if distances[i] == 0 or distances[i] == float('inf'):
             score.append(0)
         else:
-            score.append(len(groups[i][1])/distances[i])
+            base_score = len(groups[i][1])/distances[i]
+            # Add bonus for frontier size and distance
+            frontier_bonus = min(len(groups[i][1]) / 10.0, 1.0)  # Normalize frontier size bonus
+            distance_factor = max(1.0, distances[i] / (target_error * 5))  # Prefer slightly distant targets
+            score.append(base_score * (1 + frontier_bonus) * distance_factor)
+    
+    # Find best unvisited target with sufficient distance
     for i in range(len(distances)):
-        if distances[i] > target_error*3:
+        if distances[i] > target_error*4 and distances[i] != float('inf'):  # Increased minimum distance
             if max_score == -1 or score[i] > score[max_score]:
                 max_score = i
+    
     if max_score != -1:
         targetP = paths[max_score]
-    else: #gruplar target_error*2 uzaklıktan daha yakınsa random bir noktayı hedef olarak seçer. Bu robotun bazı durumlardan kurtulmasını sağlar.
-        index = random.randint(0,len(groups)-1)
-        target = groups[index][1]
-        target = target[random.randint(0,len(target)-1)]
-        path = astar(matrix, current, target)
-        targetP = [(p[1]*resolution+originX,p[0]*resolution+originY) for p in path]
+        print(f"[INFO] Selected frontier group {max_score} with score {score[max_score]:.3f}, distance {distances[max_score]:.3f}m")
+    else:
+        # If all close targets are visited, try the best available target regardless of distance
+        valid_indices = [i for i in range(len(distances)) if distances[i] != float('inf') and len(paths[i]) > 0]
+        if valid_indices:
+            best_idx = max(valid_indices, key=lambda x: score[x])
+            targetP = paths[best_idx]
+            print(f"[INFO] All preferred targets visited, selecting best available: group {best_idx}")
+        else:
+            # Last resort: random exploration movement
+            print("[INFO] No valid frontiers available, initiating random exploration movement")
+            # Create a random target slightly away from current position
+            angle = random.uniform(0, 2 * math.pi)
+            distance = target_error * 6  # Move 6x target_error distance
+            random_x = current[1] * resolution + originX + distance * math.cos(angle)
+            random_y = current[0] * resolution + originY + distance * math.sin(angle)
+            targetP = [(current[1]*resolution+originX, current[0]*resolution+originY), 
+                       (random_x, random_y)]
+    
     return targetP
 
 def pathLength(path):
@@ -298,7 +318,7 @@ def costmap(data,width,height,resolution,expansion_size):
             data[x,y] = 100
     return data
 
-def exploration(data,width,height,resolution,column,row,originX,originY,expansion_size,target_error):
+def exploration(data,width,height,resolution,column,row,originX,originY,expansion_size,target_error, visited_targets=None, current_pos=None, scan_data=None, robot_r=1.5):
         global pathGlobal #Global degisken
         data = costmap(data,width,height,resolution,expansion_size) #Engelleri genislet
         
@@ -314,14 +334,30 @@ def exploration(data,width,height,resolution,column,row,originX,originY,expansio
         data = frontierB(data) #Sınır noktaları bul
         data,groups = assign_groups(data) #Sınır noktaları gruplandır
         groups = fGroups(groups) #Grupları küçükten büyüğe sırala. En buyuk 5 grubu al
-        if len(groups) == 0: #Grup yoksa kesif tamamlandı
+        
+        if len(groups) == 0: #Grup yoksa kesif tamamlandı atau coba safe movement
+            print("[INFO] No frontier groups found")
+            if current_pos and scan_data:
+                print("[INFO] Attempting safe exploration movement")
+                safe_path = safe_exploration_movement(current_pos, data, scan_data, robot_r, resolution, originX, originY, width, height)
+                if safe_path:
+                    pathGlobal = safe_path
+                    print("[INFO] Generated safe exploration path")
+                    return
             path = -1
         else: #Grup varsa en yakın grubu bul
             data[data < 0] = 1 #-0.05 olanlar bilinmeyen yer. Gidilemez olarak isaretle. 0 = gidilebilir, 1 = gidilemez.
-            path = findClosestGroup(data,groups,(row,column),resolution,originX,originY,target_error) #En yakın grubu bul
+            path = findClosestGroup(data,groups,(row,column),resolution,originX,originY,target_error,visited_targets) #En yakın grubu bul
             if path != None: #Yol varsa BSpline ile düzelt
                 path = bspline_planning(path,len(path)*5)
             else:
+                # If no valid frontier path, try safe movement
+                if current_pos and scan_data:
+                    print("[INFO] No valid frontier path, attempting safe exploration movement")
+                    safe_path = safe_exploration_movement(current_pos, data, scan_data, robot_r, resolution, originX, originY, width, height)
+                    if safe_path:
+                        pathGlobal = safe_path
+                        return
                 path = -1
         pathGlobal = path
         return
@@ -341,6 +377,58 @@ def localControl(scan, robot_r):
                 w = math.pi/4
                 break
     return v,w
+
+def safe_exploration_movement(current_pos, map_data, scan_data, robot_r, resolution, originX, originY, width, height):
+    """
+    Generate a safe exploration movement when no frontiers are available.
+    This considers the map and laser scan to avoid obstacles.
+    """
+    current_x, current_y = current_pos
+    
+    # Convert current position to grid coordinates
+    grid_x = int((current_x - originX) / resolution)
+    grid_y = int((current_y - originY) / resolution)
+    
+    # Find safe directions based on laser scan
+    safe_angles = []
+    scan_ranges = scan_data if isinstance(scan_data, list) else scan_data.ranges
+    
+    for i in range(0, 360, 15):  # Check every 15 degrees
+        angle_rad = math.radians(i)
+        if i < len(scan_ranges) and scan_ranges[i] > robot_r * 2:  # Safe distance
+            safe_angles.append(angle_rad)
+    
+    if not safe_angles:
+        return None  # No safe direction found
+    
+    # Choose the safest direction with longest range
+    best_angle = None
+    max_distance = 0
+    
+    for angle in safe_angles:
+        angle_deg = int(math.degrees(angle))
+        if angle_deg < len(scan_ranges):
+            distance = scan_ranges[angle_deg]
+            if distance > max_distance:
+                max_distance = distance
+                best_angle = angle
+    
+    if best_angle is None:
+        best_angle = random.choice(safe_angles)
+    
+    # Generate target position
+    move_distance = min(max_distance * 0.5, 3.0)  # Move half the detected distance, max 3m
+    target_x = current_x + move_distance * math.cos(best_angle)
+    target_y = current_y + move_distance * math.sin(best_angle)
+    
+    # Validate target position is within map bounds
+    target_grid_x = int((target_x - originX) / resolution)
+    target_grid_y = int((target_y - originY) / resolution)
+    
+    if (0 <= target_grid_x < width and 0 <= target_grid_y < height):
+        return [(current_x, current_y), (target_x, target_y)]
+    else:
+        return None
 
 
 class navigationControl(Node):
@@ -374,6 +462,12 @@ class navigationControl(Node):
         self.exploration_paused = False
         self.last_button_state = [0, 0, 0]  # Track button states for debouncing
         
+        # Target tracking untuk menghindari target yang sama
+        self.visited_targets = set()
+        self.last_target_pos = None
+        self.target_revisit_timeout = 30.0  # 30 seconds before allowing revisit
+        self.target_timestamps = {}  # Track when targets were visited
+        
         print("[INFO] Exploring!")
         self.kesif = True
         threading.Thread(target=self.exp).start() #Kesif fonksiyonunu thread olarak calistirir.
@@ -392,6 +486,20 @@ class navigationControl(Node):
             if not hasattr(self,'map_data') or not hasattr(self,'odom_data') or not hasattr(self,'scan_data'):
                 time.sleep(0.1)
                 continue
+            
+            # Clean up old visited targets based on timeout
+            current_time = time.time()
+            expired_targets = []
+            for target_pos, timestamp in self.target_timestamps.items():
+                if current_time - timestamp > self.target_revisit_timeout:
+                    expired_targets.append(target_pos)
+            
+            for expired_target in expired_targets:
+                if expired_target in self.visited_targets:
+                    self.visited_targets.remove(expired_target)
+                    del self.target_timestamps[expired_target]
+                    print(f"[INFO] Target at {expired_target} removed from visited list (timeout)")
+                
             if self.kesif == True:
                 if isinstance(pathGlobal, int) and pathGlobal == 0:
                     column = int((self.x - self.originX)/self.resolution)
@@ -402,6 +510,7 @@ class navigationControl(Node):
                     print(f"[DEBUG] Map info: origin=({self.originX:.3f}, {self.originY:.3f}), resolution={self.resolution:.3f}")
                     print(f"[DEBUG] Calculated grid coords: row={row}, column={column}")
                     print(f"[DEBUG] Map dimensions: height={self.height}, width={self.width}")
+                    print(f"[DEBUG] Visited targets count: {len(self.visited_targets)}")
                     
                     # Validate coordinates before calling exploration
                     if row < 0 or row >= self.height or column < 0 or column >= self.width:
@@ -409,7 +518,7 @@ class navigationControl(Node):
                         time.sleep(0.1)
                         continue
                     
-                    exploration(self.data,self.width,self.height,self.resolution,column,row,self.originX,self.originY,self.expansion_size,self.target_error)
+                    exploration(self.data,self.width,self.height,self.resolution,column,row,self.originX,self.originY,self.expansion_size,self.target_error,self.visited_targets,(self.x,self.y),self.scan_data,self.robot_r)
                     self.path = pathGlobal
                 else:
                     self.path = pathGlobal
@@ -418,11 +527,16 @@ class navigationControl(Node):
                     sys.exit()
                 self.c = int((self.path[-1][0] - self.originX)/self.resolution) 
                 self.r = int((self.path[-1][1] - self.originY)/self.resolution) 
+                
+                # Record new target position
+                new_target_pos = (self.path[-1][0], self.path[-1][1])
+                self.last_target_pos = new_target_pos
+                
                 self.kesif = False
                 self.i = 0
                 print("[INFO] Detected Target")
                 t = pathLength(self.path)/self.speed
-                t = t - 0.2 #x = v * t formülüne göre hesaplanan sureden 0.2 saniye cikarilir. t sure sonra kesif fonksiyonu calistirilir.
+                t = max(t - 0.5, 1.0)  # Increase buffer time and ensure minimum delay
                 self.t = threading.Timer(t,self.target_callback) #Hedefe az bir sure kala kesif fonksiyonunu calistirir.
                 self.t.start()
             
@@ -435,6 +549,13 @@ class navigationControl(Node):
                     v = 0.0
                     w = 0.0
                     self.kesif = True
+                    
+                    # Add reached target to visited list
+                    if self.last_target_pos:
+                        self.visited_targets.add(self.last_target_pos)
+                        self.target_timestamps[self.last_target_pos] = time.time()
+                        print(f"[INFO] Target {self.last_target_pos} added to visited list")
+                    
                     print("[INFO] Goal Reached")
                     if hasattr(self, 't'):  # Check if timer exists before joining
                         self.t.join() #Thread bitene kadar bekle.
@@ -450,7 +571,7 @@ class navigationControl(Node):
             if self.r < 0 or self.r >= self.height or self.c < 0 or self.c >= self.width:
                 print(f"[ERROR] Target coordinates out of bounds: row={self.r}, column={self.c}")
                 return
-        exploration(self.data,self.width,self.height,self.resolution,self.c,self.r,self.originX,self.originY,self.expansion_size,self.target_error)
+        exploration(self.data,self.width,self.height,self.resolution,self.c,self.r,self.originX,self.originY,self.expansion_size,self.target_error,self.visited_targets,(self.x,self.y),self.scan_data,self.robot_r)
         
     def joy_callback(self, msg):
         """Handle joystick input for emergency control"""
