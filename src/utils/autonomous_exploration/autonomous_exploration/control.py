@@ -364,8 +364,8 @@ class navigationControl(Node):
         self.robot_r = self.get_parameter('robot_r').value
     
         self.subscription = self.create_subscription(OccupancyGrid,'map',self.map_callback,10)
-        self.subscription = self.create_subscription(Odometry,'fasem_odom',self.odom_callback,10)
-        self.subscription = self.create_subscription(LaserScan,'fasem_scan',self.scan_callback,10)
+        self.subscription = self.create_subscription(Odometry,'odom',self.odom_callback,10)
+        self.subscription = self.create_subscription(LaserScan,'scan',self.scan_callback,10)
         self.joy_subscription = self.create_subscription(Joy, '/a200_1060/joy_teleop/joy', self.joy_callback, 10)
         self.publisher = self.create_publisher(Twist, target_vel, 10)
         
