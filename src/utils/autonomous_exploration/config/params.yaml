@@ -6,3 +6,7 @@ robot_r : 1.6 #robot distance for local safety (increased safety)
 replanning_threshold : 1.5 #threshold for dynamic replanning
 stuck_detection_time : 8.0 #time to detect if robot is stuck (increased)
 stuck_distance_threshold : 0.01 #minimum distance to consider stuck (more sensitive)
+target_revisit_timeout : 30.0 #seconds before allowing revisit to same target
+min_target_distance_multiplier : 4 #minimum distance = target_error * this value
+frontier_size_bonus_factor : 10.0 #frontier size bonus normalization factor
+safe_exploration_max_distance : 3.0 #maximum safe exploration movement distance

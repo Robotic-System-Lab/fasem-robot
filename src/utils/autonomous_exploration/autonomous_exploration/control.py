@@ -132,10 +132,19 @@ def pure_pursuit(current_x, current_y, current_heading, path, index, lookahead_d
         desired_steering_angle -= 2 * math.pi
     elif desired_steering_angle < -math.pi:
         desired_steering_angle += 2 * math.pi
+    # Limit angular velocity for smoother turns
+    max_angular_velocity = math.pi/8  # Reduced from pi/4 for gentler turns
+    
     if desired_steering_angle > math.pi/6 or desired_steering_angle < -math.pi/6:
         sign = 1 if desired_steering_angle > 0 else -1
-        desired_steering_angle = sign * math.pi/4
-        v = 0.0
+        desired_steering_angle = sign * max_angular_velocity  # Use reduced angular velocity
+        v = 0.1  # Reduced speed during sharp turns instead of stopping
+    
+    # Further limit angular velocity for smoother movement
+    if abs(desired_steering_angle) > max_angular_velocity:
+        sign = 1 if desired_steering_angle > 0 else -1
+        desired_steering_angle = sign * max_angular_velocity
+    
     return v,desired_steering_angle,index
 
 def frontierB(matrix):
@@ -365,16 +374,19 @@ def exploration(data,width,height,resolution,column,row,originX,originY,expansio
 def localControl(scan, robot_r):
     v = None
     w = None
+    # Reduced angular velocity for gentler obstacle avoidance
+    angular_speed = math.pi/6  # Reduced from pi/4 for smoother turns
+    
     for i in range(60):
         if scan[i] < robot_r:
-            v = 0.2
-            w = -math.pi/4 
+            v = 0.15  # Slightly reduced linear speed
+            w = -angular_speed  # Use reduced angular speed
             break
     if v == None:
         for i in range(300,360):
             if scan[i] < robot_r:
-                v = 0.2
-                w = math.pi/4
+                v = 0.15  # Slightly reduced linear speed
+                w = angular_speed  # Use reduced angular speed
                 break
     return v,w
 
@@ -438,10 +450,11 @@ class navigationControl(Node):
         # Declare ROS2 parameters with default values
         self.declare_parameter('target_vel', "cmd_vel")
         self.declare_parameter('lookahead_distance', 0.24)
-        self.declare_parameter('speed', 0.15)
+        self.declare_parameter('speed', 0.12)  # Reduced default speed for smoother movement
         self.declare_parameter('expansion_size', 20)
         self.declare_parameter('target_error', 0.3)
         self.declare_parameter('robot_r', 1.5)
+        self.declare_parameter('max_angular_velocity', 0.4)  # New parameter for angular velocity control
         
         # Get parameter values
         target_vel = self.get_parameter('target_vel').value
@@ -450,6 +463,7 @@ class navigationControl(Node):
         self.expansion_size = self.get_parameter('expansion_size').value
         self.target_error = self.get_parameter('target_error').value
         self.robot_r = self.get_parameter('robot_r').value
+        self.max_angular_velocity = self.get_parameter('max_angular_velocity').value
     
         self.subscription = self.create_subscription(OccupancyGrid,'map',self.map_callback,10)
         self.subscription = self.create_subscription(Odometry,'fasem_odom',self.odom_callback,10)
@@ -467,6 +481,11 @@ class navigationControl(Node):
         self.last_target_pos = None
         self.target_revisit_timeout = 30.0  # 30 seconds before allowing revisit
         self.target_timestamps = {}  # Track when targets were visited
+        
+        # Angular velocity smoothing
+        self.previous_angular_velocity = 0.0
+        self.angular_acceleration_limit = 1.5  # rad/s^2 - limit for angular acceleration
+        self.dt = 0.1  # time step in seconds
         
         print("[INFO] Exploring!")
         self.kesif = True
@@ -559,11 +578,41 @@ class navigationControl(Node):
                     print("[INFO] Goal Reached")
                     if hasattr(self, 't'):  # Check if timer exists before joining
                         self.t.join() #Thread bitene kadar bekle.
+                
+                # Apply angular velocity smoothing for gentler turns
+                w = self.smooth_angular_velocity(w)
+                
                 twist.linear.x = v
                 twist.angular.z = w
                 self.publisher.publish(twist)
                 time.sleep(0.1)
             #Rota Takip Blok Bitis
+    
+    def smooth_angular_velocity(self, target_angular_velocity):
+        """
+        Smooth angular velocity changes to prevent sudden turns
+        """
+        # Limit the angular velocity to maximum allowed
+        if abs(target_angular_velocity) > self.max_angular_velocity:
+            sign = 1 if target_angular_velocity > 0 else -1
+            target_angular_velocity = sign * self.max_angular_velocity
+        
+        # Calculate the change in angular velocity
+        angular_velocity_change = target_angular_velocity - self.previous_angular_velocity
+        
+        # Limit the rate of change (acceleration)
+        max_change = self.angular_acceleration_limit * self.dt
+        if abs(angular_velocity_change) > max_change:
+            sign = 1 if angular_velocity_change > 0 else -1
+            angular_velocity_change = sign * max_change
+        
+        # Apply the limited change
+        smoothed_angular_velocity = self.previous_angular_velocity + angular_velocity_change
+        
+        # Update previous angular velocity for next iteration
+        self.previous_angular_velocity = smoothed_angular_velocity
+        
+        return smoothed_angular_velocity
 
     def target_callback(self):
         # Validate coordinates before calling exploration
