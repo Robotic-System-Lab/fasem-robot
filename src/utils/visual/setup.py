@@ -24,6 +24,8 @@ setup(
             'kivy = visual.kvnode:main', # Visualize Segmentation with Kivy
             'qt = visual.qtnode:main', # Visualize Segmentation with QT
             'vid = visual.qtvid:main', # Convert PNGs to MP4 with QT
+            'data_writer = visual.data_writer:main', # Save map data to JSON files
+            'data_visualizer = visual.data_visualizer:main', # Visualize saved map data
         ],
     },
 )
