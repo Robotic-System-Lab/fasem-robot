@@ -93,6 +93,9 @@ void SlamGmapping::startLiveSlam() {
         "/segmentation_result", rclcpp::SystemDefaultsQoS(),
         std::bind(&SlamGmapping::labelCallback, this, std::placeholders::_1)
     );
+    
+    // Publish initial identity transform immediately
+    publishTransform();
 }
 
 void SlamGmapping::labelCallback(const segmentation_interfaces::msg::SegmentationResult::SharedPtr msg)
@@ -115,7 +118,11 @@ void SlamGmapping::labelCallback(const segmentation_interfaces::msg::Segmentatio
 void SlamGmapping::publishLoop(double transform_publish_period){
     if (transform_publish_period == 0)
         return;
-    rclcpp::Rate r(1.0 / transform_publish_period);
+    
+    // Use higher frequency for more consistent transform publishing
+    double effective_period = std::min(transform_publish_period, 0.02); // Max 50Hz
+    rclcpp::Rate r(1.0 / effective_period);
+    
     while (rclcpp::ok()) {
         publishTransform();
         r.sleep();
@@ -601,11 +608,11 @@ void SlamGmapping::updateMap(const sensor_msgs::msg::LaserScan::ConstSharedPtr s
 void SlamGmapping::publishTransform()
 {
     map_to_odom_mutex_.lock();
-    rclcpp::Time tf_expiration = get_clock()->now() + rclcpp::Duration(
-            static_cast<int32_t>(static_cast<rcl_duration_value_t>(tf_delay_)), 0);
+    // Use current time instead of future time to avoid timing issues
+    rclcpp::Time current_time = get_clock()->now();
     geometry_msgs::msg::TransformStamped transform;
     transform.header.frame_id = map_frame_;
-    transform.header.stamp = tf_expiration;
+    transform.header.stamp = current_time;
     transform.child_frame_id = odom_frame_;
     try {
         transform.transform = tf2::toMsg(map_to_odom_);

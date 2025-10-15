@@ -4,6 +4,7 @@ from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import TransformStamped
 import tf2_ros
+from builtin_interfaces.msg import Time
 
 class ScandomNode(Node):
 	def __init__(self):
@@ -27,9 +28,14 @@ class ScandomNode(Node):
 		self.create_subscription(Odometry, self.source_odom, self.callback_odom, 10)
 		self.create_subscription(LaserScan, self.source_scan, self.callback_scan, 10)
 	
+	def get_new_timestamp(self):
+		"""Generate a new timestamp using current ROS time"""
+		return self.get_clock().now().to_msg()
+	
 	def init_merged_frames(self, msg: Odometry):
+		new_timestamp = self.get_new_timestamp()
 		static_fp_to_merged_tf = TransformStamped()
-		static_fp_to_merged_tf.header.stamp = msg.header.stamp
+		static_fp_to_merged_tf.header.stamp = new_timestamp
 		static_fp_to_merged_tf.header.frame_id = 'fasem_footprint'
 		static_fp_to_merged_tf.child_frame_id = 'fasem_link'
 		static_fp_to_merged_tf.transform.translation.x = 0.0
@@ -41,7 +47,7 @@ class ScandomNode(Node):
 		static_fp_to_merged_tf.transform.rotation.w = 1.0
 
 		static_merged_to_scan_tf = TransformStamped()
-		static_merged_to_scan_tf.header.stamp = msg.header.stamp
+		static_merged_to_scan_tf.header.stamp = new_timestamp
 		static_merged_to_scan_tf.header.frame_id = 'fasem_link'
 		static_merged_to_scan_tf.child_frame_id = 'fasem_scan'
 		static_merged_to_scan_tf.transform.translation.x = 0.0
@@ -52,40 +58,106 @@ class ScandomNode(Node):
 		static_merged_to_scan_tf.transform.rotation.z = 0.0
 		static_merged_to_scan_tf.transform.rotation.w = 1.0
 
-		self.static_br.sendTransform([static_fp_to_merged_tf, static_merged_to_scan_tf])
+		self.static_br.sendTransform([
+			static_fp_to_merged_tf, 
+			static_merged_to_scan_tf,
+		])
 		self.initialized_transform = True
 		self.get_logger().warn('Static footprint initialized.')
 
 	def callback_odom(self, msg: Odometry):
+		new_timestamp = self.get_new_timestamp()
 		#############################################
 		#### Odom manipulation
 		save_odom = msg
-		save_odom.header.stamp = msg.header.stamp
+		save_odom.header.stamp = new_timestamp
 		save_odom.header.frame_id = 'fasem_odom'
 		save_odom.child_frame_id = 'fasem_footprint'
 	
 		#############################################
 		#### Odom frame setup
 		odom_tf = TransformStamped()
-		odom_tf.header.stamp = msg.header.stamp
+		odom_tf.header.stamp = new_timestamp
 		odom_tf.header.frame_id = save_odom.header.frame_id
 		odom_tf.child_frame_id = save_odom.child_frame_id 
 		odom_tf.transform.translation.x = save_odom.pose.pose.position.x
 		odom_tf.transform.translation.y = save_odom.pose.pose.position.y
 		odom_tf.transform.translation.z = save_odom.pose.pose.position.z
 		odom_tf.transform.rotation = save_odom.pose.pose.orientation
+  
+		#############################################
+		# Additional static transforms for robot components
+		static_caster_back_tf = TransformStamped()
+		static_caster_back_tf.header.stamp = new_timestamp
+		static_caster_back_tf.header.frame_id = 'fasem_link'
+		static_caster_back_tf.child_frame_id = 'caster_back_link'
+		static_caster_back_tf.transform.translation.x = 0.0
+		static_caster_back_tf.transform.translation.y = 0.0
+		static_caster_back_tf.transform.translation.z = 0.0
+		static_caster_back_tf.transform.rotation.x = 0.0
+		static_caster_back_tf.transform.rotation.y = 0.0
+		static_caster_back_tf.transform.rotation.z = 0.0
+		static_caster_back_tf.transform.rotation.w = 1.0
+
+		#############################################
+		# Additional static transforms for robot components
+		static_imu_tf = TransformStamped()
+		static_imu_tf.header.stamp = new_timestamp
+		static_imu_tf.header.frame_id = 'fasem_link'
+		static_imu_tf.child_frame_id = 'imu_link_'
+		static_imu_tf.transform.translation.x = 0.0
+		static_imu_tf.transform.translation.y = 0.0
+		static_imu_tf.transform.translation.z = 0.0
+		static_imu_tf.transform.rotation.x = 0.0
+		static_imu_tf.transform.rotation.y = 0.0
+		static_imu_tf.transform.rotation.z = 0.0
+		static_imu_tf.transform.rotation.w = 1.0
+
+		#############################################
+		# Additional static transforms for robot components
+		static_wheel_left_tf = TransformStamped()
+		static_wheel_left_tf.header.stamp = new_timestamp
+		static_wheel_left_tf.header.frame_id = 'fasem_link'
+		static_wheel_left_tf.child_frame_id = 'wheel_left_link'
+		static_wheel_left_tf.transform.translation.x = 0.0
+		static_wheel_left_tf.transform.translation.y = 0.0
+		static_wheel_left_tf.transform.translation.z = 0.0
+		static_wheel_left_tf.transform.rotation.x = 0.0
+		static_wheel_left_tf.transform.rotation.y = 0.0
+		static_wheel_left_tf.transform.rotation.z = 0.0
+		static_wheel_left_tf.transform.rotation.w = 1.0
+
+		#############################################
+		# Additional static transforms for robot components
+		static_wheel_right_tf = TransformStamped()
+		static_wheel_right_tf.header.stamp = new_timestamp
+		static_wheel_right_tf.header.frame_id = 'fasem_link'
+		static_wheel_right_tf.child_frame_id = 'wheel_right_link'
+		static_wheel_right_tf.transform.translation.x = 0.0
+		static_wheel_right_tf.transform.translation.y = 0.0
+		static_wheel_right_tf.transform.translation.z = 0.0
+		static_wheel_right_tf.transform.rotation.x = 0.0
+		static_wheel_right_tf.transform.rotation.y = 0.0
+		static_wheel_right_tf.transform.rotation.z = 0.0
+		static_wheel_right_tf.transform.rotation.w = 1.0
 	
 		#############################################
 		#### all transform broadcasted
 		self.odom_publisher.publish(save_odom)
-		self.br.sendTransform(odom_tf)
+		self.br.sendTransform([
+			odom_tf,
+			# static_caster_back_tf,
+			# static_imu_tf,
+			# static_wheel_left_tf,
+			# static_wheel_right_tf,
+		])
 		if not self.initialized_transform:
 			self.init_merged_frames(msg=save_odom)
 
 	def callback_scan(self, msg: LaserScan):
 		#############################################
 		#### Temporary scan setup
-		latest_stamp = msg.header.stamp
+		new_timestamp = self.get_new_timestamp()
 		limited_scan = LaserScan()
 
 		#############################################
@@ -106,7 +178,7 @@ class ScandomNode(Node):
 			intensity if msg.ranges[i] <= self.maxrange else 0.0
 			for i, intensity in enumerate(msg.intensities)
 		] if msg.intensities else []
-		limited_scan.header.stamp = latest_stamp
+		limited_scan.header.stamp = new_timestamp
 		self.scan_publisher.publish(limited_scan)
 
 def main(args=None):
