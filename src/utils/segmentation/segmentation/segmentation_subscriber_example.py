@@ -27,9 +27,11 @@ class SegmentationResultSubscriber(Node):
             msg (SegmentationResult): Message berisi data segmentasi
         """
         self.get_logger().info(f"Received segmentation data:")
-        self.get_logger().info(f"  Count: {msg.count}")
-        self.get_logger().info(f"  Timestamp: {msg.timestamp}")
-        self.get_logger().info(f"  Detected objects count: {len(msg.detected)}")
+        # self.get_logger().info(f"  Count: {msg.count}")
+        # self.get_logger().info(f"  Timestamp: {msg.timestamp}")
+        # self.get_logger().info(f"  Detected objects count: {len(msg.detected)}")
+        unique_numbers = sorted(set(msg.detected))
+        self.get_logger().info(f"  Unique numbers in detected objects: {', '.join(map(str, unique_numbers))}")
         
         # Contoh analisis data deteksi
         non_empty_detections = [d for d in msg.detected if d not in [99, 100]]

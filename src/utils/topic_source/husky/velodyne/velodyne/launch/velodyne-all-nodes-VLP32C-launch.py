@@ -57,12 +57,15 @@ def generate_launch_description():
                                                       output='both',
                                                       parameters=[convert_params])
 
-    laserscan_share_dir = ament_index_python.packages.get_package_share_directory('velodyne_laserscan')
-    laserscan_params_file = os.path.join(laserscan_share_dir, 'config', 'default-velodyne_laserscan_node-params.yaml')
+    # Hard-coded parameters for velodyne_laserscan_node
+    laserscan_params = {
+        'ring': -1,
+        'resolution': 0.01745
+    }
     velodyne_laserscan_node = launch_ros.actions.Node(package='velodyne_laserscan',
                                                       executable='velodyne_laserscan_node',
                                                       output='both',
-                                                      parameters=[laserscan_params_file])
+                                                      parameters=[laserscan_params])
 
 
     return launch.LaunchDescription([velodyne_driver_node,

@@ -229,15 +229,27 @@ double ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, co
 	
 	const double * angle=m_laserAngles+m_initialBeamsSkip;
 	double esum=0;
-	int counter = 0;
+	int counter = m_initialBeamsSkip; // Start counter from m_initialBeamsSkip to match labelReads_ indexing
 	// cout << "====================================" << endl;
 	// cout << "labelReads_=========================" << labelReads_[0] << endl;
 	// cout << "labelReads_=========================" << labelReads_[359] << endl;
 	// cout << "====================================" << endl;
-	for (const double* r=readings+m_initialBeamsSkip; r<readings+m_laserBeams; r++, angle++) {
+	// std::set<int> uniqueLabels(labelReads_.begin(), labelReads_.end());
+	// std::cout << "====================================" << std::endl;
+	// std::cout << "Unique labels: ";
+	// for (const int& label : uniqueLabels) {
+	// 	std::cout << label << " ";
+	// }
+	// std::cout << std::endl;
+	// std::cout << "====================================" << std::endl;
+
+	for (const double* r=readings+m_initialBeamsSkip; r<readings+m_laserBeams; r++, angle++, counter++) {
+		
 		if (m_generateMap){
 			double d=*r;
-			if (d>m_laserMaxRange||d==0.0||isnan(d)) continue;
+			if (d>m_laserMaxRange||d==0.0||isnan(d)) {
+				continue;
+			}
 			if (d>m_usableRange)
 				d=m_usableRange;
 			Point phit=lp+Point(d*cos(lp.theta+*angle),d*sin(lp.theta+*angle));
@@ -259,12 +271,23 @@ double ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, co
 			}
 			if (d<m_usableRange){
 				double e=-map.cell(p1).entropy();
+				// Debug print to verify correct label value
+				// std::cout << "Using labelReads_[" << counter << "] = " << labelReads_[counter] << std::endl;
+				// if (counter >= labelReads_.size()) {
+				// 	std::cerr << "Debug: Counter out of bounds! counter=" << counter << ", labelReads_.size()=" << labelReads_.size() << std::endl;
+				// 	continue;
+				// }
+				if (labelReads_[counter] < 100 || labelReads_[counter] > 103) {
+					std::cerr << "Debug: Invalid labelReads_[" << counter << "] = " << labelReads_[counter] << std::endl;
+				}
 				map.cell(p1).update(true,phit,labelReads_[counter]);
 				e+=map.cell(p1).entropy();
 				esum+=e;
 			}
 		} else {
-			if (*r>m_laserMaxRange||*r>m_usableRange||*r==0.0||isnan(*r)) continue;
+			if (*r>m_laserMaxRange||*r>m_usableRange||*r==0.0||isnan(*r)) {
+				continue;
+			}
 			Point phit=lp;
 			phit.x+=*r*cos(lp.theta+*angle);
 			phit.y+=*r*sin(lp.theta+*angle);
@@ -272,8 +295,12 @@ double ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, co
 			assert(p1.x>=0 && p1.y>=0);
 			map.cell(p1).update(true,phit,0);
 		}
-		counter++;
 	}
+	// if (counter != 360) {
+	// 	std::cout << "====================================" << std::endl;
+	// 	std::cout << "Counter: " << counter << std::endl;
+	// 	std::cout << "====================================" << std::endl;
+	// }
 	return esum;
 }
 
@@ -573,6 +600,9 @@ void ScanMatcher::setLaserParameters
 	assert(beams<LASER_MAXBEAMS);
 	m_laserPose=lpose;
 	m_laserBeams=beams;
+	// cout << "=========================" << endl;
+	// cout << "ScanMatcher::setLaserParameters: beams=" << beams << endl;
+	// cout << "=========================" << endl;
 	//m_laserAngles=new double[beams];
 	memcpy(m_laserAngles, angles, sizeof(double)*m_laserBeams);	
 }

@@ -185,7 +185,7 @@ int main(int argc, char** argv){
 				matcher.invalidateActiveArea();
 				matcher.computeActiveArea(smap, s->pose, rawreadings);
 //				matcher.allocActiveArea(smap, s->pose, rawreadings);
-				matcher.registerScan(smap, s->pose, rawreadings);
+				matcher.registerScan(smap, s->pose, rawreadings, std::vector<int>(360, 100));
 				count++;
 			}
 		}

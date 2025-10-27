@@ -33,12 +33,17 @@ struct PointAccumulator{
 	// of the label assigned to a point.
 	// The label is the detected value, which can be a class ID or a semantic label.
 	int label_prob[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
+	int label_absolute = 0;
 	int label_modifier = 6;
 	int frees_modifier = 3;
 };
 
 void PointAccumulator::update(bool value, const Point& p, int detected){
+	if (detected != 0 && detected != 100 && detected != 101 && detected != 102 && detected != 103) {
+		detected = 100;
+	}
 	if (value) {
+		label_absolute = detected;
 		// Assign Detected Value for Semantic Mapping
 		if (detected > 0) {
 			// Pergeseran value label objek
@@ -82,7 +87,11 @@ int PointAccumulator::getLabel() {
 			modeCount = pair.second;
 		}
 	}
-	return mode;
+	// if (mode != 0 && mode != 100 && mode != 101 && mode != 102 && mode != 103) {
+	// 	std::cout << "==========ANOMALY GET LABEL=========:::";
+	// 	std::cout << mode << std::endl;
+	// }
+	return label_absolute;
 }
 
 double PointAccumulator::entropy() const{

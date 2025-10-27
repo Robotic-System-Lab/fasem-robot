@@ -141,7 +141,7 @@ inline bool GridSlamProcessor::resample(const double* plainReading, int adaptSiz
     for (ParticleVector::iterator it=temp.begin(); it!=temp.end(); it++){
       it->setWeight(0);
       m_matcher.invalidateActiveArea();
-      m_matcher.registerScan(it->map, it->pose, plainReading, std::vector<int>());
+      m_matcher.registerScan(it->map, it->pose, plainReading, std::vector<int>(360, 100));
       m_particles.push_back(*it);
     }
     std::cerr  << " Done" <<std::endl;
@@ -162,7 +162,7 @@ inline bool GridSlamProcessor::resample(const double* plainReading, int adaptSiz
 
       //END: BUILDING TREE
       m_matcher.invalidateActiveArea();
-      m_matcher.registerScan(it->map, it->pose, plainReading, std::vector<int>());
+      m_matcher.registerScan(it->map, it->pose, plainReading, std::vector<int>(360, 100));
       it->previousIndex=index;
       index++;
       node_it++;

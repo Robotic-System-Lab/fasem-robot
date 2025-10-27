@@ -76,6 +76,10 @@ class DataWriterNode(Node):
             'data': list(msg.data)  # Convert to list for JSON serialization
         }
         
+        # Extract unique numbers from msg.data and sort them
+        unique_numbers = sorted(set(msg.data))
+        self.get_logger().info(f'Unique numbers in data: {unique_numbers}')
+        
         # Add to queue for asynchronous writing
         filename = f"{timestamp_now}.json"
         filepath = os.path.join(self.base_path, filename)

@@ -488,18 +488,18 @@ void SlamGmapping::updateMap(const sensor_msgs::msg::LaserScan::ConstSharedPtr s
         RCLCPP_WARN(this->get_logger(), "Filled, resuming..");
     }
 
-    RCLCPP_WARN(this->get_logger(), "Step 1");
+    // RCLCPP_WARN(this->get_logger(), "Step 1");
     matcher.setlaserMaxRange(maxRange_);
     matcher.setusableRange(maxUrange_);
     matcher.setgenerateMap(true);
 
-    RCLCPP_WARN(this->get_logger(), "Step 2");
+    // RCLCPP_WARN(this->get_logger(), "Step 2");
     std_msgs::msg::Float64 entropy;
     entropy.data = computePoseEntropy();
     if(entropy.data > 0.0)
         entropy_publisher_->publish(entropy);
 
-    RCLCPP_WARN(this->get_logger(), "Step 3");
+    // RCLCPP_WARN(this->get_logger(), "Step 3");
     if(!got_map_) {
         map_.info.resolution = static_cast<nav_msgs::msg::MapMetaData::_resolution_type>(delta_);
         map_.info.origin.position.x = 0.0;
@@ -511,16 +511,16 @@ void SlamGmapping::updateMap(const sensor_msgs::msg::LaserScan::ConstSharedPtr s
         map_.info.origin.orientation.w = 1.0;
     }
 
-    RCLCPP_WARN(this->get_logger(), "Step 4");
+    // RCLCPP_WARN(this->get_logger(), "Step 4");
     GMapping::Point center;
     center.x=(xmin_ + xmax_) / 2.0;
     center.y=(ymin_ + ymax_) / 2.0;
 
-    RCLCPP_WARN(this->get_logger(), "Step 5");
+    // RCLCPP_WARN(this->get_logger(), "Step 5");
     GMapping::ScanMatcherMap smap(center, xmin_, ymin_, xmax_, ymax_,
                                   delta_);
 
-    RCLCPP_WARN(this->get_logger(), "Step 6");
+    // RCLCPP_WARN(this->get_logger(), "Step 6");
     int indexer = 0;
     int collection_length = static_cast<int>(labelReadsCollection_.size());
     RCLCPP_DEBUG(this->get_logger(), "Trajectory tree:");
@@ -544,6 +544,18 @@ void SlamGmapping::updateMap(const sensor_msgs::msg::LaserScan::ConstSharedPtr s
     RCLCPP_WARN(this->get_logger(), "=====================================");
     if (!segmentation_error && !local_labelJSON.is_null() && !local_labelJSON.empty()) {
         RCLCPP_WARN(this->get_logger(), "Label number %d received", local_labelJSON["count"].get<int>());
+        // std::set<int> unique_labels;
+        // for (const auto& label : local_labelJSON["detected"]) {
+        //     unique_labels.insert(label.get<int>());
+        // }
+        // std::ostringstream oss;
+        // for (auto it = unique_labels.begin(); it != unique_labels.end(); ++it) {
+        //     if (it != unique_labels.begin()) {
+        //         oss << ",";
+        //     }
+        //     oss << *it;
+        // }
+        // RCLCPP_WARN(this->get_logger(), "Unique labels detected: %s", oss.str().c_str());
     } else {
         RCLCPP_WARN(this->get_logger(), "No valid segmentation data available");
     }
@@ -585,6 +597,9 @@ void SlamGmapping::updateMap(const sensor_msgs::msg::LaserScan::ConstSharedPtr s
             }
             else if(occ > occ_thresh_)
             {
+                // if (label != 100 && label != 101 && label != 102 && label != 103) {
+                //     RCLCPP_WARN(this->get_logger(), "Label at (%d, %d): %d", x, y, label);
+                // }
                 map_.data[MAP_IDX(map_.info.width, x, y)] = label;
             }
             else {

@@ -1,8 +1,10 @@
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid , Odometry
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Point
 from sensor_msgs.msg import LaserScan, Joy
+from visualization_msgs.msg import Marker, MarkerArray
+from std_msgs.msg import ColorRGBA
 import numpy as np
 import heapq , math , random
 import scipy.interpolate as si
@@ -336,7 +338,7 @@ def exploration(data,width,height,resolution,column,row,originX,originY,expansio
             print(f"[WARNING] Robot position out of bounds: row={row}, column={column}, map size=({height},{width})")
             print(f"[INFO] Map origin: originX={originX}, originY={originY}, resolution={resolution}")
             pathGlobal = -1  # Set path as completed/invalid
-            return
+            return None, None
             
         data[row][column] = 0 #Robot Anlık Konum
         data[data > 5] = 1 # 0 olanlar gidilebilir yer, 100 olanlar kesin engel
@@ -352,7 +354,7 @@ def exploration(data,width,height,resolution,column,row,originX,originY,expansio
                 if safe_path:
                     pathGlobal = safe_path
                     print("[INFO] Generated safe exploration path")
-                    return
+                    return safe_path, []
             path = -1
         else: #Grup varsa en yakın grubu bul
             data[data < 0] = 1 #-0.05 olanlar bilinmeyen yer. Gidilemez olarak isaretle. 0 = gidilebilir, 1 = gidilemez.
@@ -366,10 +368,10 @@ def exploration(data,width,height,resolution,column,row,originX,originY,expansio
                     safe_path = safe_exploration_movement(current_pos, data, scan_data, robot_r, resolution, originX, originY, width, height)
                     if safe_path:
                         pathGlobal = safe_path
-                        return
+                        return safe_path, groups
                 path = -1
         pathGlobal = path
-        return
+        return path, groups
 
 def localControl(scan, robot_r):
     v = None
@@ -471,6 +473,12 @@ class navigationControl(Node):
         self.joy_subscription = self.create_subscription(Joy, '/a200_1060/joy_teleop/joy', self.joy_callback, 10)
         self.publisher = self.create_publisher(Twist, target_vel, 10)
         
+        # Visualization publishers
+        self.marker_publisher = self.create_publisher(MarkerArray, 'exploration_markers', 10)
+        self.goal_marker_publisher = self.create_publisher(Marker, 'goal_marker', 10)
+        self.path_marker_publisher = self.create_publisher(Marker, 'path_marker', 10)
+        self.frontier_marker_publisher = self.create_publisher(MarkerArray, 'frontier_markers', 10)
+        
         # Emergency handling states
         self.emergency_stop = False
         self.exploration_paused = False
@@ -487,9 +495,298 @@ class navigationControl(Node):
         self.angular_acceleration_limit = 1.5  # rad/s^2 - limit for angular acceleration
         self.dt = 0.1  # time step in seconds
         
+        # Visualization update tracking
+        self.visualization_counter = 0
+        self.visualization_update_rate = 10  # Update visualization every 10 iterations (1 second)
+        
         print("[INFO] Exploring!")
         self.kesif = True
         threading.Thread(target=self.exp).start() #Kesif fonksiyonunu thread olarak calistirir.
+        
+    def create_goal_marker(self, position, marker_id=0):
+        """Create a goal marker for visualization in RViz2"""
+        try:
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = "goal"
+            marker.id = marker_id
+            marker.type = Marker.SPHERE
+            marker.action = Marker.ADD
+        
+            # Position
+            marker.pose.position.x = position[0]
+            marker.pose.position.y = position[1]
+            marker.pose.position.z = 0.2
+            marker.pose.orientation.w = 1.0
+            
+            # Scale
+            marker.scale.x = 0.5
+            marker.scale.y = 0.5
+            marker.scale.z = 0.5
+            
+            # Color (Red for goal)
+            marker.color.r = 1.0
+            marker.color.g = 0.0
+            marker.color.b = 0.0
+            marker.color.a = 1.0
+            
+            # Persistent marker
+            marker.lifetime.sec = 0
+            marker.lifetime.nanosec = 0
+            return marker
+        except Exception as e:
+            print(f"[ERROR] Failed to create goal marker: {e}")
+            return None
+    
+    def create_path_marker(self, path_points):
+        """Create a path marker for visualization in RViz2"""
+        try:
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = "path"
+            marker.id = 0
+            marker.type = Marker.LINE_STRIP
+            marker.action = Marker.ADD
+        
+            # Position
+            marker.pose.orientation.w = 1.0
+            
+            # Scale (line width)
+            marker.scale.x = 0.1
+            
+            # Color (Blue for path)
+            marker.color.r = 0.0
+            marker.color.g = 0.0
+            marker.color.b = 1.0
+            marker.color.a = 0.8
+            
+            # Points
+            for point in path_points:
+                p = Point()
+                p.x = point[0]
+                p.y = point[1]
+                p.z = 0.05
+                marker.points.append(p)
+            
+            # Persistent marker
+            marker.lifetime.sec = 0
+            marker.lifetime.nanosec = 0
+            return marker
+        except Exception as e:
+            print(f"[ERROR] Failed to create path marker: {e}")
+            return None
+            marker.id = 0
+            marker.type = Marker.LINE_STRIP
+            marker.action = Marker.ADD
+        
+        # Position
+        marker.pose.orientation.w = 1.0
+        
+        # Scale (line width)
+        marker.scale.x = 0.1
+        
+        # Color (Blue for path)
+        marker.color.r = 0.0
+        marker.color.g = 0.0
+        marker.color.b = 1.0
+        marker.color.a = 0.8
+        
+        # Points
+        for point in path_points:
+            p = Point()
+            p.x = point[0]
+            p.y = point[1]
+            p.z = 0.05
+            marker.points.append(p)
+        
+        # Persistent marker
+        marker.lifetime.sec = 0
+        marker.lifetime.nanosec = 0
+        return marker
+    
+    def create_frontier_markers(self, frontier_groups, resolution, originX, originY):
+        """Create frontier markers for visualization in RViz2"""
+        marker_array = MarkerArray()
+        
+        for i, (group_id, frontier_points) in enumerate(frontier_groups):
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = "frontiers"
+            marker.id = i
+            marker.type = Marker.POINTS
+            marker.action = Marker.ADD
+            
+            # Position
+            marker.pose.orientation.w = 1.0
+            
+            # Scale
+            marker.scale.x = 0.2
+            marker.scale.y = 0.2
+            
+            # Color (Green for frontiers, different shades for different groups)
+            colors = [
+                (0.0, 1.0, 0.0),  # Green
+                (0.0, 0.8, 0.2),  # Light green
+                (0.2, 1.0, 0.0),  # Yellow-green
+                (0.0, 0.6, 0.4),  # Dark green
+                (0.4, 1.0, 0.0),  # Lime green
+            ]
+            color_idx = i % len(colors)
+            marker.color.r = colors[color_idx][0]
+            marker.color.g = colors[color_idx][1]
+            marker.color.b = colors[color_idx][2]
+            marker.color.a = 0.8
+            
+            # Convert grid coordinates to world coordinates and add points
+            for frontier_point in frontier_points:
+                p = Point()
+                p.x = frontier_point[1] * resolution + originX
+                p.y = frontier_point[0] * resolution + originY
+                p.z = 0.1
+                marker.points.append(p)
+            
+            marker.lifetime.sec = 60  # 60 seconds lifetime for frontiers
+            marker.lifetime.nanosec = 0
+            marker_array.markers.append(marker)
+        
+        return marker_array
+    
+    def create_centroid_markers(self, frontier_groups, resolution, originX, originY):
+        """Create centroid markers for frontier groups"""
+        marker_array = MarkerArray()
+        
+        for i, (group_id, frontier_points) in enumerate(frontier_groups):
+            # Calculate centroid
+            centroid = calculate_centroid([p[0] for p in frontier_points], [p[1] for p in frontier_points])
+            
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = "centroids"
+            marker.id = i
+            marker.type = Marker.CYLINDER
+            marker.action = Marker.ADD
+            
+            # Position (convert grid to world coordinates)
+            marker.pose.position.x = centroid[1] * resolution + originX
+            marker.pose.position.y = centroid[0] * resolution + originY
+            marker.pose.position.z = 0.3
+            marker.pose.orientation.w = 1.0
+            
+            # Scale
+            marker.scale.x = 0.4
+            marker.scale.y = 0.4
+            marker.scale.z = 0.6
+            
+            # Color (Yellow for centroids)
+            marker.color.r = 1.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+            marker.color.a = 0.9
+            
+            marker.lifetime.sec = 60  # 60 seconds lifetime
+            marker.lifetime.nanosec = 0
+            marker_array.markers.append(marker)
+        
+        return marker_array
+    
+    def publish_exploration_visualization(self, target_position=None, path_points=None, frontier_groups=None, resolution=None, originX=None, originY=None):
+        """Publish all exploration visualization markers"""
+        try:
+            print(f"[DEBUG] Visualization called - target: {target_position is not None}, path: {path_points is not None}, frontiers: {frontier_groups is not None}")
+            
+            # Publish goal marker
+            if target_position:
+                goal_marker = self.create_goal_marker(target_position)
+                if goal_marker:
+                    self.goal_marker_publisher.publish(goal_marker)
+                    print(f"[VISUALIZATION] Published goal marker at: ({target_position[0]:.3f}, {target_position[1]:.3f})")
+            
+            # Publish path marker
+            if path_points and len(path_points) > 1:
+                path_marker = self.create_path_marker(path_points)
+                if path_marker:
+                    self.path_marker_publisher.publish(path_marker)
+                    print(f"[VISUALIZATION] Published path marker with {len(path_points)} points")
+            
+            # Publish frontier markers (only if all required data is available)
+            if (frontier_groups and resolution is not None and 
+                originX is not None and originY is not None):
+                frontier_markers = self.create_frontier_markers(frontier_groups, resolution, originX, originY)
+                self.frontier_marker_publisher.publish(frontier_markers)
+                
+                centroid_markers = self.create_centroid_markers(frontier_groups, resolution, originX, originY)
+                self.marker_publisher.publish(centroid_markers)
+                print(f"[VISUALIZATION] Published {len(frontier_groups)} frontier groups")
+                
+        except Exception as e:
+            print(f"[ERROR] Visualization publish error: {e}")
+    
+    def clear_markers(self):
+        """Clear all visualization markers"""
+        try:
+            # Clear goal marker
+            clear_marker = Marker()
+            clear_marker.header.frame_id = "map"
+            clear_marker.header.stamp = self.get_clock().now().to_msg()
+            clear_marker.ns = "goal"
+            clear_marker.id = 0
+            clear_marker.action = Marker.DELETE
+            self.goal_marker_publisher.publish(clear_marker)
+            
+            # Clear path marker
+            clear_marker.ns = "path"
+            self.path_marker_publisher.publish(clear_marker)
+            
+            # Clear all frontier markers
+            clear_marker_array = MarkerArray()
+            for i in range(10):  # Clear up to 10 markers
+                clear_marker_single = Marker()
+                clear_marker_single.header.frame_id = "map"
+                clear_marker_single.header.stamp = self.get_clock().now().to_msg()
+                clear_marker_single.ns = "frontiers"
+                clear_marker_single.id = i
+                clear_marker_single.action = Marker.DELETE
+                clear_marker_array.markers.append(clear_marker_single)
+                
+                clear_marker_single = Marker()
+                clear_marker_single.header.frame_id = "map"
+                clear_marker_single.header.stamp = self.get_clock().now().to_msg()
+                clear_marker_single.ns = "centroids"
+                clear_marker_single.id = i
+                clear_marker_single.action = Marker.DELETE
+                clear_marker_array.markers.append(clear_marker_single)
+            
+            self.frontier_marker_publisher.publish(clear_marker_array)
+            self.marker_publisher.publish(clear_marker_array)
+            print("[VISUALIZATION] Cleared all markers")
+            
+        except Exception as e:
+            print(f"[ERROR] Clear markers error: {e}")
+    
+    def clear_goal_and_path_markers(self):
+        """Clear only goal and path markers when target is reached"""
+        try:
+            # Clear goal marker
+            clear_marker = Marker()
+            clear_marker.header.frame_id = "map"
+            clear_marker.header.stamp = self.get_clock().now().to_msg()
+            clear_marker.ns = "goal"
+            clear_marker.id = 0
+            clear_marker.action = Marker.DELETE
+            self.goal_marker_publisher.publish(clear_marker)
+            
+            # Clear path marker
+            clear_marker.ns = "path"
+            self.path_marker_publisher.publish(clear_marker)
+            
+            print("[VISUALIZATION] Cleared goal and path markers")
+            
+        except Exception as e:
+            print(f"[ERROR] Clear goal/path markers error: {e}")
         
     def exp(self):
         twist = Twist()
@@ -537,8 +834,23 @@ class navigationControl(Node):
                         time.sleep(0.1)
                         continue
                     
-                    exploration(self.data,self.width,self.height,self.resolution,column,row,self.originX,self.originY,self.expansion_size,self.target_error,self.visited_targets,(self.x,self.y),self.scan_data,self.robot_r)
+                    exploration_result = exploration(self.data,self.width,self.height,self.resolution,column,row,self.originX,self.originY,self.expansion_size,self.target_error,self.visited_targets,(self.x,self.y),self.scan_data,self.robot_r)
                     self.path = pathGlobal
+                    
+                    # Extract frontier groups for visualization
+                    if exploration_result and len(exploration_result) == 2:
+                        _, frontier_groups = exploration_result
+                        # Publish visualization markers
+                        if self.path and not isinstance(self.path, int):
+                            target_pos = self.path[-1] if self.path else None
+                            self.publish_exploration_visualization(
+                                target_position=target_pos,
+                                path_points=self.path,
+                                frontier_groups=frontier_groups,
+                                resolution=self.resolution,
+                                originX=self.originX,
+                                originY=self.originY
+                            )
                 else:
                     self.path = pathGlobal
                 if isinstance(self.path, int) and self.path == -1:
@@ -575,12 +887,31 @@ class navigationControl(Node):
                         self.target_timestamps[self.last_target_pos] = time.time()
                         print(f"[INFO] Target {self.last_target_pos} added to visited list")
                     
+                    # Clear goal and path markers when reached
+                    self.clear_goal_and_path_markers()
+                    
                     print("[INFO] Goal Reached")
                     if hasattr(self, 't'):  # Check if timer exists before joining
                         self.t.join() #Thread bitene kadar bekle.
                 
                 # Apply angular velocity smoothing for gentler turns
                 w = self.smooth_angular_velocity(w)
+                
+                # Update visualization periodically during path following
+                self.visualization_counter += 1
+                if self.visualization_counter >= self.visualization_update_rate:
+                    self.visualization_counter = 0
+                    if hasattr(self, 'path') and self.path and not isinstance(self.path, int):
+                        target_pos = self.path[-1] if self.path else None
+                        print(f"[DEBUG] Periodic visualization update - path following")
+                        self.publish_exploration_visualization(
+                            target_position=target_pos,
+                            path_points=self.path,
+                            frontier_groups=None,  # Skip frontier updates during path following
+                            resolution=None,
+                            originX=None,
+                            originY=None
+                        )
                 
                 twist.linear.x = v
                 twist.angular.z = w
@@ -620,7 +951,7 @@ class navigationControl(Node):
             if self.r < 0 or self.r >= self.height or self.c < 0 or self.c >= self.width:
                 print(f"[ERROR] Target coordinates out of bounds: row={self.r}, column={self.c}")
                 return
-        exploration(self.data,self.width,self.height,self.resolution,self.c,self.r,self.originX,self.originY,self.expansion_size,self.target_error,self.visited_targets,(self.x,self.y),self.scan_data,self.robot_r)
+        path, frontier_groups = exploration(self.data,self.width,self.height,self.resolution,self.c,self.r,self.originX,self.originY,self.expansion_size,self.target_error,self.visited_targets,(self.x,self.y),self.scan_data,self.robot_r)
         
     def joy_callback(self, msg):
         """Handle joystick input for emergency control"""

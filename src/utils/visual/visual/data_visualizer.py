@@ -102,7 +102,7 @@ class ImageGeneratorThread(QThread):
                     elif value == 0:
                         color = [QColor('lightgray'), None, None]
                     else:
-                        color = [None, None, None]
+                        color = [QColor(50, 50, 50) for _ in range(3)]
                     
                     for i, fill in enumerate(color):
                         if fill is not None:
@@ -758,20 +758,8 @@ class DataVisualizerWindow(QMainWindow):
                     if self.file_list.item(i).text() == latest_filename:
                         self.file_list.setCurrentRow(i)
                         # Use safe file selection for live mode
-                        success = self._file_selected_safe(self.file_list.item(i), show_errors=False)
-                        if success:
-                            self.status_label.setText(f"Live monitoring: Showing latest file {latest_filename}")
+                        self._file_selected_safe(self.file_list.item(i), show_errors=False)
                         break
-        else:
-            # Update status to show monitoring is active
-            current_time_str = datetime.datetime.now().strftime("%H:%M:%S")
-            available_files = len(all_json_files)
-            ready_files = len(json_files)
-            
-            if available_files > ready_files:
-                self.status_label.setText(f"Live monitoring: {ready_files}/{available_files} files ready - Last check: {current_time_str}")
-            else:
-                self.status_label.setText(f"Live monitoring: {ready_files} files - Last check: {current_time_str}")
     
     def _update_file_list(self):
         """Update the file list widget with current data files"""
