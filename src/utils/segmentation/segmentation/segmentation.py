@@ -136,7 +136,7 @@ class YOLOSegnetNode(Node):
               'name': label_data[idx]['name'],
             })
           else:
-            self.get_logger().info(f"'{label_data[idx]['name']}' == Invalid (no intersection)")
+            # self.get_logger().info(f"'{label_data[idx]['name']}' == Invalid (no intersection)")
             segmentation_data.append({'name': f"INVALID-{label_data[idx]['name']}"})
           idx += 1
     
