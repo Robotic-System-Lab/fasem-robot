@@ -33,8 +33,8 @@ struct PointAccumulator{
 	// This is used for semantic mapping, where we want to know the uncertainty
 	// of the label assigned to a point.
 	// The label is the detected value, which can be a class ID or a semantic label.
-	int label_prob[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
-	int label_absolute = 0;
+	int label_prob[12] = {100,100,100,100,100,100,100,100,100,100,100,100};
+	int label_absolute = 100;
 	int label_modifier = 6;
 	int frees_modifier = 1;
 };
