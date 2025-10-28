@@ -2,11 +2,11 @@
 segmentation:
   ros__parameters:
     segmentation_model: "yolo11m-seg.pt"
-    cam_center: 80
+    cam_center: 6
     cam_count: 6
-    view_p: 0.30
+    view_p: 0.2
     view_h: 0.25
-    fov_h: 60.0
+    fov_h: 90.0
 # Ray Scan configuration
 scan:
   ros__parameters:

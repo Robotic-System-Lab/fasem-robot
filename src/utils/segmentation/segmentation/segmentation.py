@@ -21,15 +21,15 @@ class YOLOSegnetNode(Node):
     self.bridge = CvBridge()
     self.segmentation_counter = 0
     
-    self.declare_parameter('fov_h', 60.0)
+    self.declare_parameter('fov_h', 90.0)
     self.declare_parameter('view_p', 0.25)
-    self.declare_parameter('view_h', 0.10)
+    self.declare_parameter('view_h', 0.2)
     self.fov_h = self.get_parameter('fov_h').value
     self.view_p = self.get_parameter('view_p').value
     self.view_h = self.get_parameter('view_h').value
     
     self.declare_parameter('cam_count', 6)
-    self.declare_parameter('cam_center', 30)
+    self.declare_parameter('cam_center', 6)
     self.cam_count = self.get_parameter('cam_count').value
     self.cam_center = self.get_parameter('cam_center').value
     self.angle_default = round(360 / self.cam_count)
@@ -67,7 +67,21 @@ class YOLOSegnetNode(Node):
   
   def image_callback(self, msg, index):
     cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-    self.images[index] = cv_image
+
+    # Tebakan parameter intrinsik dan distorsi (manual tweaking)
+    K = np.array([[600, 0, 320], [0, 600, 240], [0, 0, 1]], dtype=np.float32)
+    dist = np.array([-0.3, 0.1, 0, 0, 0], dtype=np.float32)
+
+    # Koreksi distorsi dan ambil ROI
+    h, w = cv_image.shape[:2]
+    new_K, roi = cv2.getOptimalNewCameraMatrix(K, dist, (w, h), 1)
+    undistorted = cv2.undistort(cv_image, K, dist, None, new_K)
+
+    # Crop area valid (hilangkan bagian hitam)
+    x, y, w_roi, h_roi = roi
+    cropped = undistorted[y:y+h_roi, x:x+w_roi]
+
+    self.images[index] = cropped
 
   def collect_results(self, results, cv_image, index):
     label_data = []
@@ -96,7 +110,7 @@ class YOLOSegnetNode(Node):
           conf = box.conf.item()
 
           label_data.append({
-            'label': hazard_lookup.get(label_name, 1),
+            'label': hazard_lookup.get(label_name, 100),
             'conf': conf,
             'name': label_name,
           })
@@ -200,9 +214,41 @@ class YOLOSegnetNode(Node):
         bottom_start = int((self.view_h + self.view_p) * h)
         cv2.rectangle(overlay, (0, 0), (w, top_end), (0, 0, 0), -1)
         cv2.rectangle(overlay, (0, bottom_start), (w, h), (0, 0, 0), -1)
+        
+        # Overlay untuk sisi kanan dan kiri berdasarkan fov_h
+        if self.fov_h > 60:
+          # Hitung lebar per kamera dalam combined_image
+          # Total lebar = (lebar_kamera + border) * cam_count - border_terakhir
+          single_camera_width = (w - (border_thickness * (self.cam_count - 1))) / self.cam_count
+          # Pixels per degree untuk setiap kamera individu
+          pixels_per_degree = single_camera_width / self.fov_h
+          # Pixel yang seharusnya untuk 60 derajat
+          ideal_width_60deg = 60 * pixels_per_degree
+          # Pixel yang melebihi 60 derajat pada setiap kamera
+          excess_width_per_camera = single_camera_width - ideal_width_60deg
+          # Overlay pada setiap kamera
+          side_overlay_width = int(excess_width_per_camera / 2)
+          
+          if side_overlay_width > 0:
+            for cam_idx in range(self.cam_count):
+              # Hitung posisi kamera dalam combined_image
+              cam_start = int(cam_idx * (single_camera_width + border_thickness))
+              cam_end = int(cam_start + single_camera_width)
+              
+              # Overlay sisi kiri kamera
+              cv2.rectangle(overlay, (cam_start, 0), (cam_start + side_overlay_width, h), (0, 0, 0), -1)
+              # Overlay sisi kanan kamera
+              cv2.rectangle(overlay, (cam_end - side_overlay_width, 0), (cam_end, h), (0, 0, 0), -1)
 
         # Gabungkan overlay dengan combined_image
         combined_image = cv2.addWeighted(overlay, alpha, combined_image, 1 - alpha, 0)
+
+        # Perbesar gambar akhir sebesar 1.5x
+        final_height, final_width = combined_image.shape[:2]
+        scale_factor = 1.4
+        new_width = int(final_width * scale_factor)
+        new_height = int(final_height * scale_factor)
+        combined_image = cv2.resize(combined_image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
 
         cv2.imshow("Segmented Images", combined_image)
         cv2.waitKey(1)
