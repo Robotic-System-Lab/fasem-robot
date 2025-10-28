@@ -103,15 +103,31 @@ class YOLOSegnetNode(Node):
       if result.masks is not None:
         idx = 0
         for mask in result.masks.xy:
-          valid_points = mask[
-            (mask[:, 1] >= y_min_valid) &
-            (mask[:, 1] <= y_max_valid) &
-            (mask[:, 0] >= x_min_valid) &
-            (mask[:, 0] <= x_max_valid)
-          ]
-          if valid_points.size > 0:
-            x1 = int(valid_points[:, 0].min())
-            x2 = int(valid_points[:, 0].max())
+          # Hitung bounding box dari mask
+          mask_x_min = int(mask[:, 0].min())
+          mask_x_max = int(mask[:, 0].max())
+          mask_y_min = int(mask[:, 1].min())
+          mask_y_max = int(mask[:, 1].max())
+          
+          # Hitung irisan antara mask bounding box dengan area valid
+          intersection_x_min = max(mask_x_min, x_min_valid)
+          intersection_x_max = min(mask_x_max, x_max_valid)
+          intersection_y_min = max(mask_y_min, y_min_valid)
+          intersection_y_max = min(mask_y_max, y_max_valid)
+          
+          # Cek apakah ada irisan yang valid
+          has_intersection = (intersection_x_min < intersection_x_max and 
+                            intersection_y_min < intersection_y_max)
+          
+          if has_intersection:
+            # Gunakan koordinat irisan untuk x1 dan x2
+            x1 = intersection_x_min
+            x2 = intersection_x_max
+            
+            # Hitung area irisan untuk validasi tambahan (opsional)
+            intersection_area = (intersection_x_max - intersection_x_min) * (intersection_y_max - intersection_y_min)
+            mask_area = (mask_x_max - mask_x_min) * (mask_y_max - mask_y_min)
+            overlap_ratio = intersection_area / mask_area if mask_area > 0 else 0
             segmentation_data.append({
               'x1': x1,
               'x2': x2,
@@ -120,6 +136,7 @@ class YOLOSegnetNode(Node):
               'name': label_data[idx]['name'],
             })
           else:
+            self.get_logger().info(f"'{label_data[idx]['name']}' == Invalid (no intersection)")
             segmentation_data.append({'name': f"INVALID-{label_data[idx]['name']}"})
           idx += 1
     
@@ -211,6 +228,8 @@ class YOLOSegnetNode(Node):
         msg_out.detected = translate_detected
         
         self.label_end_publisher.publish(msg_out)
+        unique_vals = sorted(set(translate_detected))
+        self.get_logger().info(f"Unique values in translate_detected: {unique_vals}")
         self.get_logger().info(f"Successfully performed segmentation for counter: {self.segmentation_counter}")
       except Exception as e:
         self.get_logger().error(f"Error: {e}")
