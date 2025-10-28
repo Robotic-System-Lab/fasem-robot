@@ -202,7 +202,7 @@
         <mass>0.000001</mass>
       </inertial>
       <pose>0.270 0 0.755 0 -0 0</pose>
-      <sensor name='camera_1' type='camera'>
+      <sensor name='camera_6' type='camera'>
         <always_on>1</always_on>
         <visualize>1</visualize>
         <update_rate>5</update_rate>
@@ -246,7 +246,7 @@
         <mass>0.000001</mass>
       </inertial>
       <pose>0.2325 0.065 0.755 0 -0 1.0472</pose>
-      <sensor name='camera_2' type='camera'>
+      <sensor name='camera_5' type='camera'>
         <always_on>1</always_on>
         <visualize>0</visualize>
         <update_rate>5</update_rate>
@@ -290,7 +290,7 @@
         <mass>0.000001</mass>
       </inertial>
       <pose>0.1575 0.065 0.755 0 -0 2.0944</pose>
-      <sensor name='camera_3' type='camera'>
+      <sensor name='camera_4' type='camera'>
         <always_on>1</always_on>
         <visualize>0</visualize>
         <update_rate>5</update_rate>
@@ -335,7 +335,7 @@
         <mass>0.000001</mass>
       </inertial>
       <pose>0.120 0 0.755 0 -0 3.1416</pose>
-      <sensor name='camera_4' type='camera'>
+      <sensor name='camera_3' type='camera'>
         <always_on>1</always_on>
         <visualize>0</visualize>
         <update_rate>5</update_rate>
@@ -379,7 +379,7 @@
         <mass>0.000001</mass>
       </inertial>
       <pose>0.1575 -0.065 0.755 -0 -0 -2.0944</pose>
-      <sensor name='camera_5' type='camera'>
+      <sensor name='camera_2' type='camera'>
         <always_on>1</always_on>
         <visualize>0</visualize>
         <update_rate>5</update_rate>
@@ -423,7 +423,7 @@
         <mass>0.000001</mass>
       </inertial>
       <pose>0.2325 -0.065 0.755 0 0 -1.0472</pose>
-      <sensor name='camera_6' type='camera'>
+      <sensor name='camera_1' type='camera'>
         <always_on>1</always_on>
         <visualize>0</visualize>
         <update_rate>5</update_rate>
