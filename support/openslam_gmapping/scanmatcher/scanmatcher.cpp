@@ -261,7 +261,7 @@ double ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, co
 			for (int i=0; i<line.num_points-1; i++){
 				PointAccumulator& cell=map.cell(line.points[i]);
 				double e=-cell.entropy();
-				cell.update(false,Point(0,0),0);
+				cell.update(false,Point(0,0),labelReads_[counter]);
 				e+=cell.entropy();
 				esum+=e;
 				// double randomX = static_cast<double>(std::rand()) / RAND_MAX;
@@ -293,7 +293,7 @@ double ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, co
 			phit.y+=*r*sin(lp.theta+*angle);
 			IntPoint p1=map.world2map(phit);
 			assert(p1.x>=0 && p1.y>=0);
-			map.cell(p1).update(true,phit,0);
+			map.cell(p1).update(true,phit,labelReads_[counter]);
 		}
 	}
 	// if (counter != 360) {
