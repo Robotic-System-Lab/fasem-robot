@@ -29,7 +29,7 @@ class YOLOSegnetNode(Node):
     self.view_h = self.get_parameter('view_h').value
     
     self.declare_parameter('cam_count', 6)
-    self.declare_parameter('cam_center', 150)
+    self.declare_parameter('cam_center', 30)
     self.cam_count = self.get_parameter('cam_count').value
     self.cam_center = self.get_parameter('cam_center').value
     self.angle_default = round(360 / self.cam_count)
