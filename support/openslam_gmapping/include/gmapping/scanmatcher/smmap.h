@@ -34,7 +34,6 @@ struct PointAccumulator{
 	// of the label assigned to a point.
 	// The label is the detected value, which can be a class ID or a semantic label.
 	int label_prob[12] = {100,100,100,100,100,100,100,100,100,100,100,100};
-	int label_absolute = 100;
 	int label_modifier = 6;
 	int frees_modifier = 1;
 };
@@ -71,11 +70,6 @@ int PointAccumulator::getLabel() {
 			modeCount = pair.second;
 		}
 	}
-	// if (mode != 0 && mode != 100 && mode != 101 && mode != 102 && mode != 103) {
-	// 	std::cout << "==========ANOMALY GET LABEL=========:::";
-	// 	std::cout << mode << std::endl;
-	// }
-	// return label_absolute;
 	return mode;
 }
 

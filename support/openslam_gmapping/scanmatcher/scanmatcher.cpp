@@ -217,7 +217,6 @@ double ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, co
 	if (!m_activeAreaComputed)
 		computeActiveArea(map, p, readings);
 		
-	//this operation replicates the cells that will be changed in the registration operation
 	map.storage().allocActiveArea();
 	
 	OrientedPoint lp=p;
@@ -229,19 +228,7 @@ double ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, co
 	
 	const double * angle=m_laserAngles+m_initialBeamsSkip;
 	double esum=0;
-	int counter = m_initialBeamsSkip; // Start counter from m_initialBeamsSkip to match labelReads_ indexing
-	// cout << "====================================" << endl;
-	// cout << "labelReads_=========================" << labelReads_[0] << endl;
-	// cout << "labelReads_=========================" << labelReads_[359] << endl;
-	// cout << "====================================" << endl;
-	// std::set<int> uniqueLabels(labelReads_.begin(), labelReads_.end());
-	// std::cout << "====================================" << std::endl;
-	// std::cout << "Unique labels: ";
-	// for (const int& label : uniqueLabels) {
-	// 	std::cout << label << " ";
-	// }
-	// std::cout << std::endl;
-	// std::cout << "====================================" << std::endl;
+	int counter = m_initialBeamsSkip;
 
 	for (const double* r=readings+m_initialBeamsSkip; r<readings+m_laserBeams; r++, angle++, counter++) {
 		
@@ -254,7 +241,6 @@ double ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, co
 				d=m_usableRange;
 			Point phit=lp+Point(d*cos(lp.theta+*angle),d*sin(lp.theta+*angle));
 			IntPoint p1=map.world2map(phit);
-			//IntPoint linePoints[20000] ;
 			GridLineTraversalLine line;
 			line.points=m_linePoints;
 			GridLineTraversal::gridLine(p0, p1, &line);
@@ -264,19 +250,9 @@ double ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, co
 				cell.update(false,Point(0,0),labelReads_[counter]);
 				e+=cell.entropy();
 				esum+=e;
-				// double randomX = static_cast<double>(std::rand()) / RAND_MAX;
-				// double randomY = static_cast<double>(std::rand()) / RAND_MAX;
-				// GMapping::Point randomPoint(randomX, randomY);
-				// dcell.update(false, randomPoint);
 			}
 			if (d<m_usableRange){
 				double e=-map.cell(p1).entropy();
-				// Debug print to verify correct label value
-				// std::cout << "Using labelReads_[" << counter << "] = " << labelReads_[counter] << std::endl;
-				// if (counter >= labelReads_.size()) {
-				// 	std::cerr << "Debug: Counter out of bounds! counter=" << counter << ", labelReads_.size()=" << labelReads_.size() << std::endl;
-				// 	continue;
-				// }
 				if (labelReads_[counter] < 100 || labelReads_[counter] > 103) {
 					std::cerr << "Debug: Invalid labelReads_[" << counter << "] = " << labelReads_[counter] << std::endl;
 				}
@@ -296,11 +272,6 @@ double ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, co
 			map.cell(p1).update(true,phit,labelReads_[counter]);
 		}
 	}
-	// if (counter != 360) {
-	// 	std::cout << "====================================" << std::endl;
-	// 	std::cout << "Counter: " << counter << std::endl;
-	// 	std::cout << "====================================" << std::endl;
-	// }
 	return esum;
 }
 
