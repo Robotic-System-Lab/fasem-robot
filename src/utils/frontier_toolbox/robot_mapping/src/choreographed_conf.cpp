@@ -26,7 +26,7 @@ public:
   ChoreographedConf()
   : Node("choreographed_conf"), counter_(0)
   {
-    publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("/husky/cmd_vel", 10);
+    publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
     error_publisher_ = create_publisher<visualization_msgs::msg::Marker>("/error_marker", 10);
     error_sub_ =
       this->create_subscription<std_msgs::msg::Float32>(
