@@ -1,0 +1,26 @@
+frontier_explorer:
+  ros__parameters:
+    use_naive: true
+    use_clustering: true
+    eval_cluster_size: true
+    consider_free_edge: false
+    viewpoint_depth: 1.0
+    use_action_client_node: true
+    entropy_radius: 2.4
+    robot_radius: 0.75                   # DEPRECATED - kept for backward compatibility
+    
+    # NEW: Rectangular robot footprint parameters
+    robot_length: 0.99                   # Robot length in meters (x-dimension)
+    robot_width: 0.67                    # Robot width in meters (y-dimension)  
+    footprint_safety_margin: 0.20       # Additional safety margin around footprint
+    
+    use_sampling: true
+    use_entropy_calc: false
+    sampling_threshold: 250
+    banning_radius: 1.2                  # Reduced since we now have better footprint checking
+    stuck_tolerance: 0.01
+
+nav_to_pose:
+  ros__parameters:
+    pose_frame: "map"
+    republish_same_goal: true

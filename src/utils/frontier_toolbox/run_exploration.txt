@@ -1,0 +1,2 @@
+ros2 launch frontier_exp_cpp nav_frontier.launch.py use_sim_time:=false
+ros2 lifecycle set /frontier_explorer activate

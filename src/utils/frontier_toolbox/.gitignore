@@ -1,0 +1,10 @@
+.vscode
+**__pycache__**
+
+build/
+Catch2/
+
+_nuturtle_description/
+local/
+
+# *
