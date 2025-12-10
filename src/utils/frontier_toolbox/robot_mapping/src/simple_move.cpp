@@ -28,7 +28,7 @@ public:
   {
     laser_subscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
       "/fasem_scan", 10, std::bind(&SimpleMoveNode::laser_scan_callback, this, std::placeholders::_1));
-    cmd_vel_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+    husky/cmd_vel_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("/husky/cmd_vel", 10);
 
     // Initialize default values
     forward_speed_ = 0.2;      // meters per second
@@ -39,7 +39,7 @@ public:
 private:
   // Objects
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_subscription_;
-  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher_;
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr husky/cmd_vel_publisher_;
   // Variables
   double forward_speed_;
   double turn_speed_;
@@ -93,7 +93,7 @@ private:
     auto msg = geometry_msgs::msg::Twist();
     msg.linear.x = forward_speed_;
     msg.angular.z = 0.0;
-    cmd_vel_publisher_->publish(msg);
+    husky/cmd_vel_publisher_->publish(msg);
   }
 
   void turn_left()
@@ -101,7 +101,7 @@ private:
     auto msg = geometry_msgs::msg::Twist();
     msg.linear.x = 0.0;
     msg.angular.z = turn_speed_;
-    cmd_vel_publisher_->publish(msg);
+    husky/cmd_vel_publisher_->publish(msg);
   }
 
   void turn_right()
@@ -109,7 +109,7 @@ private:
     auto msg = geometry_msgs::msg::Twist();
     msg.linear.x = 0.0;
     msg.angular.z = -turn_speed_;
-    cmd_vel_publisher_->publish(msg);
+    husky/cmd_vel_publisher_->publish(msg);
   }
 
   void stop()
@@ -117,7 +117,7 @@ private:
     auto msg = geometry_msgs::msg::Twist();
     msg.linear.x = 0.0;
     msg.angular.z = 0.0;
-    cmd_vel_publisher_->publish(msg);
+    husky/cmd_vel_publisher_->publish(msg);
   }
 };
 

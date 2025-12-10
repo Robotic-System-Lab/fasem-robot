@@ -39,6 +39,7 @@ While these are the most useful high level functions, the helper functions they 
     - **Teleoperation** - If you would like to move the robot via teleoperation, run teleop_twist_keyboard in another terminal.
     - **Pre-determined path** (turtle arena only) - To run the robot's predetermined path to snake through the pillars, run the command `ros2 run robot_mapping choreographed` in another terminal with the workspace sourced. (NOTE: This will print out the normalized aggregated error when it stops moving, but the running error can be echoed from the `/error` topic at any time during the simulation. The path_publisher node will also print to terminal in debug mode.)
     - **Frontier Exploration** - To run the frontier algorithms, ensure that the `frontier_exp_cpp` package was built with the correct configurations and run the command `ros2 launch frontier_exp_cpp nav_frontier.launch.py` in another terminal.
+        - **Custom cmd_vel topic**: You can specify a custom velocity command topic by adding `cmd_vel_topic:=/your/custom/topic` to the launch command. Example: `ros2 launch frontier_exp_cpp nav_frontier.launch.py cmd_vel_topic:=/robot/cmd_vel`
         - My frontier_explorer node is a lifecycle node that will self configure but **will wait to be activated**. To begin navigation, simple run `ros2 lifecycle set /frontier_explorer activate` in another terminal to start the exploration once the Nav2 bond timer has been set. 
 
 ### Launching on a Real Robot
@@ -49,7 +50,8 @@ All steps are assumed to be done on the robot through an ssh terminal.
 2. Source the workspace install folder.
 3. Run the command `ros2 launch robot_mapping launch_robot.launch.xml` in one of the terminals to start the necessary setup nodes without the simulation. 
 4. In a second terminal run the commmand `ros2 launch frontier_exp_cpp nav_frontier.launch.py use_sim_time:=false`. 
-    - NOTE: On my robot, the base frame was "fasem_link" not "fasem_footprint" which is a distiction built into the launch file. If this is different for you, ensure this corrected in the launch and params files. 
+    - NOTE: On my robot, the base frame was "fasem_link" not "fasem_footprint" which is a distiction built into the launch file. If this is different for you, ensure this corrected in the launch and params files.
+    - **NEW**: You can now specify a custom `cmd_vel` topic using `cmd_vel_topic:=/your/custom/topic` parameter. For example: `ros2 launch frontier_exp_cpp nav_frontier.launch.py use_sim_time:=false cmd_vel_topic:=/fasem/cmd_vel` 
 5. Once Nav2 is configured and the bond timer is set, activate my frontier node with `ros2 lifecycle set /frontier_explorer activate` which can be done on the local machine. 
 6. (Optional) For those who wish to monitor the robot, there are two rviz configurations that can be launched:
     - `ros2 launch robot_mapping mapper_rviz.launch.py` (the config that launches with the `robot_mapping` package)
